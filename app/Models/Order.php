@@ -7,14 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
-    use HasFactory;
+    protected $fillable = ['batch_id', 'customer_name', 'customer_phone', 'payment_proof', 'status'];
 
-    // KITA IZINKAN KOLOM INI UNTUK DIISI:
-    protected $fillable = [
-        'customer_name',
-        'customer_phone',
-        'order_details', // <--- Wajib ada!
-        'payment_proof', // <--- Wajib ada!
-        'status'
-    ];
+    // Relasi ke Item One to Many
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    // Relasi ke Batch 
+    public function batch()
+    {
+        return $this->belongsTo(Batch::class);
+    }
 }

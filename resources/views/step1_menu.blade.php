@@ -27,7 +27,16 @@
             <div class="text-white font-bold text-xl flex items-center gap-2">
                 <i class="fas fa-utensils bg-white text-blue-600 p-2 rounded-full text-sm"></i> Dapur Enak PO
             </div>
-            <div class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full border border-blue-400">Batch #1</div>
+            @if(isset($activeBatch))
+                <div class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full border border-blue-400 shadow-sm flex items-center gap-1">
+                    <i class="fas fa-tag text-[10px] opacity-80"></i>
+                    {{ $activeBatch->name }}
+                </div>
+            @else
+                <div class="bg-gray-500 text-white text-xs px-3 py-1 rounded-full border border-gray-400 shadow-sm">
+                    PO Tutup
+                </div>
+            @endif
         </div>
     </nav>
 
@@ -41,10 +50,21 @@
             @csrf
             
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                @foreach($products as $product)
+                @foreach($activeBatch->products as $product)
                 <div class="animate-card bg-white rounded-2xl shadow-md overflow-hidden border border-slate-100 flex flex-col h-full hover:shadow-xl transition-all duration-300">
-                    <div class="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
-                        <i class="fas fa-image text-5xl opacity-50"></i>
+                    <div class="h-48 bg-slate-200 flex items-center justify-center overflow-hidden relative group">
+                        @if($product->image)
+                            <img src="{{ asset('uploads/products/' . $product->image) }}" 
+                                alt="{{ $product->name }}" 
+                                class="w-full h-full object-cover transition duration-300 group-hover:scale-110">
+                        @else
+                            <i class="fas fa-image text-5xl opacity-50 text-slate-400"></i>
+                        @endif
+                        
+                        @php $sisa = $product->pivot->stock - $product->pivot->sold; @endphp
+                        <span class="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded font-bold shadow-sm">
+                            Sisa: {{ $sisa }}
+                        </span>
                     </div>
                     
                     <div class="p-5 flex flex-col flex-grow">

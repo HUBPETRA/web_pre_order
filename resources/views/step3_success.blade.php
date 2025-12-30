@@ -9,9 +9,9 @@
 </head>
 <body class="bg-blue-50 flex items-center justify-center min-h-screen p-4">
 
-    <div class="bg-white p-8 md:p-12 rounded-2xl shadow-xl max-w-md w-full text-center border-t-8 border-blue-600">
+    <div class="bg-white p-8 md:p-12 rounded-2xl shadow-xl max-w-md w-full text-center border-t-8 border-blue-600 relative overflow-hidden">
         
-        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
             <i class="fas fa-check text-4xl text-green-500"></i>
         </div>
 
@@ -20,16 +20,38 @@
             Terima kasih, data Anda dan bukti transfer telah kami terima. Admin kami akan segera memverifikasi pesanan Anda.
         </p>
         
-        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 mb-8">
+        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 mb-8 relative z-10">
             <p class="text-sm text-slate-600 mb-3 font-medium">Langkah Terakhir (Wajib):</p>
             <p class="text-xs text-slate-500 mb-4">Silakan bergabung ke grup WhatsApp untuk informasi pengambilan makanan.</p>
             
-            <a href="https://chat.whatsapp.com/GantiLinkIni" target="_blank" class="block w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg shadow-green-500/30 transition transform hover:-translate-y-1 flex items-center justify-center gap-2">
-                <i class="fab fa-whatsapp text-xl"></i> Gabung Grup WhatsApp
-            </a>
+            @php
+                // --- LOGIKA PERBAIKAN LINK OTOMATIS ---
+                $rawLink = $activeBatch->whatsapp_link ?? ''; // Ambil link dari database
+                $finalLink = '#';
+
+                if (!empty($rawLink)) {
+                    // Cek apakah link dimulai dengan http:// atau https://
+                    if (str_starts_with($rawLink, 'http://') || str_starts_with($rawLink, 'https://')) {
+                        $finalLink = $rawLink;
+                    } else {
+                        // Jika tidak ada, kita paksa tambahkan https://
+                        $finalLink = 'https://' . $rawLink;
+                    }
+                }
+            @endphp
+
+            @if($finalLink !== '#')
+                <a href="{{ $finalLink }}" target="_blank" class="block w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg shadow-green-500/30 transition transform hover:-translate-y-1 flex items-center justify-center gap-2">
+                    <i class="fab fa-whatsapp text-xl"></i> Gabung Grup WhatsApp
+                </a>
+            @else
+                <button disabled class="block w-full bg-gray-300 text-white font-bold py-3 px-6 rounded-lg cursor-not-allowed">
+                    Link WA Belum Tersedia
+                </button>
+            @endif
         </div>
 
-        <a href="{{ route('step1') }}" class="text-blue-600 hover:text-blue-800 font-medium text-sm transition">
+        <a href="{{ route('step1') }}" class="text-blue-600 hover:text-blue-800 font-medium text-sm transition relative z-10">
             Buat Pesanan Baru
         </a>
     </div>

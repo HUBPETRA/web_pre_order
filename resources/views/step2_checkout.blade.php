@@ -6,6 +6,13 @@
     <title>Checkout - Lengkapi Data</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Custom Scrollbar untuk list item agar rapi */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
 
@@ -55,9 +62,9 @@
                         
                         <div id="drop-zone" class="relative border-2 border-dashed border-blue-300 bg-blue-50 rounded-xl p-8 text-center transition-all duration-300 hover:bg-blue-100 hover:border-blue-500 cursor-pointer group">
                             
-                            <input type="file" name="payment_proof" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/png, image/jpeg" required>
+                            <input type="file" name="payment_proof" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/png, image/jpeg, image/jpg" required>
                             
-                            <div class="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                            <div id="drop-content" class="flex flex-col items-center justify-center space-y-3 pointer-events-none transition-opacity duration-300">
                                 <div class="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-blue-500 group-hover:scale-110 transition">
                                     <i class="fas fa-cloud-upload-alt text-2xl"></i>
                                 </div>
@@ -65,7 +72,11 @@
                                     <p class="text-sm font-bold text-blue-900">Klik untuk upload <span class="hidden md:inline">atau Drag & Drop</span></p>
                                     <p class="text-xs text-slate-500 mt-1">Format: JPG/PNG (Maks 2MB)</p>
                                 </div>
-                                <p id="file-name" class="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded hidden"></p>
+                            </div>
+
+                            <div id="preview-container" class="hidden flex-col items-center justify-center pointer-events-none mt-2">
+                                <img id="img-preview" class="h-32 object-contain mb-2 rounded shadow-sm hidden">
+                                <p id="file-name" class="text-xs font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full"></p>
                             </div>
                         </div>
                     </div>
@@ -85,24 +96,28 @@
                         <li class="flex justify-between text-sm group">
                             <div>
                                 <span class="font-medium text-slate-700 block">{{ $item['name'] }}</span>
-                                <span class="text-xs text-slate-400">x{{ $item['qty'] }} @ Rp {{ number_format($item['price']/1000) }}k</span>
+                                <span class="text-xs text-slate-400">x{{ $item['qty'] }} @ Rp {{ number_format($item['price'], 0, ',', '.') }}</span>
                             </div>
                             <span class="font-semibold text-slate-800">Rp {{ number_format($item['subtotal'], 0, ',', '.') }}</span>
                         </li>
                         @endforeach
                     </ul>
 
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-6">
                         <div class="flex justify-between items-center mb-1">
                             <span class="text-slate-500 text-sm">Total Bayar</span>
                             <span class="font-bold text-xl text-blue-700">Rp {{ number_format($totalPrice, 0, ',', '.') }}</span>
                         </div>
                     </div>
                     
-                    <div class="mt-4 pt-4 border-t border-slate-100 text-center">
-                        <p class="text-xs text-slate-400 mb-1">Transfer ke BCA:</p>
-                        <p class="font-mono font-bold text-slate-700 bg-yellow-50 py-1 px-2 rounded border border-yellow-100 inline-block">1234-5678-90</p>
+                    <div class="pt-4 border-t border-slate-100 text-center">
+                        <p class="text-xs text-slate-400 mb-1">Transfer ke {{ $activeBatch->bank_name }}:</p>
+                        <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-2 mb-1 inline-block">
+                            <p class="font-mono font-bold text-lg text-slate-700 tracking-wider select-all">{{ $activeBatch->bank_account_number }}</p>
+                        </div>
+                        <p class="text-xs text-slate-500">a.n {{ $activeBatch->bank_account_name }}</p>
                     </div>
+
                 </div>
             </div>
 
@@ -113,18 +128,45 @@
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const fileNameDisplay = document.getElementById('file-name');
+        const dropContent = document.getElementById('drop-content');
+        const previewContainer = document.getElementById('preview-container');
+        const imgPreview = document.getElementById('img-preview');
 
-        // Saat file dipilih (baik dari klik atau drag)
-        fileInput.addEventListener('change', function() {
-            if (this.files && this.files.length > 0) {
-                fileNameDisplay.textContent = '✓ ' + this.files[0].name;
-                fileNameDisplay.classList.remove('hidden');
+        // Fungsi Helper: Handle File
+        function handleFile(file) {
+            if (file) {
+                // Tampilkan nama file
+                fileNameDisplay.textContent = '✓ ' + file.name;
+                
+                // Ubah style border jadi hijau
                 dropZone.classList.add('border-green-400', 'bg-green-50');
                 dropZone.classList.remove('border-blue-300', 'bg-blue-50');
+
+                // Sembunyikan konten default ("Klik untuk upload")
+                dropContent.classList.add('hidden');
+                
+                // Tampilkan container preview
+                previewContainer.classList.remove('hidden');
+                previewContainer.classList.add('flex');
+
+                // Baca file untuk preview gambar
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imgPreview.src = e.target.result;
+                    imgPreview.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 1. Saat file dipilih via KLIK
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                handleFile(this.files[0]);
             }
         });
 
-        // Efek visual saat Drag Over
+        // 2. Efek Visual Drag Over
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('border-blue-600', 'bg-blue-100', 'scale-[1.02]');
@@ -135,16 +177,14 @@
             dropZone.classList.remove('border-blue-600', 'bg-blue-100', 'scale-[1.02]');
         });
 
+        // 3. Saat file di-DROP
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('border-blue-600', 'bg-blue-100', 'scale-[1.02]');
             
-            // Manual assign file dari drop event ke input
             if (e.dataTransfer.files.length > 0) {
-                fileInput.files = e.dataTransfer.files;
-                // Trigger change event manual
-                const event = new Event('change');
-                fileInput.dispatchEvent(event);
+                fileInput.files = e.dataTransfer.files; // Assign file ke input
+                handleFile(e.dataTransfer.files[0]);    // Jalankan logika preview
             }
         });
     </script>
