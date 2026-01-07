@@ -1,7 +1,7 @@
 @extends('admin.layout')
 
 @section('content')
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
                 {{ $activeBatch->name }}
@@ -11,22 +11,44 @@
             </span>
         </div>
         
-        <form action="{{ route('admin.batch.close', $activeBatch->id) }}" method="POST" onsubmit="return confirm('Yakin ingin menutup PO ini? User tidak akan bisa pesan lagi.')">
-            @csrf
-            <button class="bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-red-700 transition shadow flex items-center gap-2">
-                <i class="fas fa-stop-circle"></i> Tutup Periode PO
-            </button>
-        </form>
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('admin.batch.menu', $activeBatch->id) }}" class="bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-50 hover:text-blue-600 transition shadow-sm flex items-center gap-2">
+                <i class="fas fa-utensils"></i> Menu & Stok
+            </a>
+
+            <a href="{{ route('admin.batch.quotas', $activeBatch->id) }}" class="bg-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-purple-700 transition shadow flex items-center gap-2">
+                <i class="fas fa-chart-pie"></i> Target Kuota
+            </a>
+
+            <a href="{{ route('admin.batch.mail', $activeBatch->id) }}" class="bg-orange-500 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-orange-600 transition shadow flex items-center gap-2">
+                <i class="fas fa-envelope"></i> Template Email
+            </a>
+
+            <form action="{{ route('admin.batch.close', $activeBatch->id) }}" method="POST" onsubmit="return confirm('Yakin ingin menutup PO ini? User tidak akan bisa pesan lagi.')">
+                @csrf
+                <button class="bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-700 transition shadow flex items-center gap-2">
+                    <i class="fas fa-stop-circle"></i> Tutup PO
+                </button>
+            </form>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-blue-100">
+        
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-blue-100 relative group">
+            <button onclick="openEditBatchModal()" class="absolute top-3 right-3 text-gray-300 hover:text-blue-600 transition">
+                <i class="fas fa-pen text-xs"></i>
+            </button>
             <p class="text-xs text-gray-500 font-bold uppercase mb-1">Rekening Penerima</p>
             <p class="font-bold text-lg text-blue-900">{{ $activeBatch->bank_name }}</p>
             <p class="text-md text-gray-700 font-mono">{{ $activeBatch->bank_account_number }}</p>
             <p class="text-xs text-gray-500 mt-1">a.n {{ $activeBatch->bank_account_name }}</p>
         </div>
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100 flex flex-col justify-center">
+
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100 flex flex-col justify-center relative group">
+            <button onclick="openEditBatchModal()" class="absolute top-3 right-3 text-gray-300 hover:text-green-600 transition">
+                <i class="fas fa-pen text-xs"></i>
+            </button>
             <div class="flex justify-between items-start">
                 <div>
                     <p class="text-xs text-gray-500 font-bold uppercase mb-1">Grup WhatsApp</p>
@@ -37,6 +59,7 @@
                 <i class="fab fa-whatsapp text-4xl text-green-100 text-green-500"></i>
             </div>
         </div>
+
         <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white p-5 rounded-xl shadow-lg flex flex-col justify-center text-center">
             <p class="text-sm opacity-80 uppercase tracking-wider font-bold">Pesanan Masuk</p>
             <h2 class="text-4xl font-extrabold mt-1">{{ count($orders) }}</h2>
@@ -68,6 +91,7 @@
                                 <td class="p-4">
                                     <div class="font-bold text-slate-800">{{ $order->customer_name }}</div>
                                     <div class="text-xs text-gray-500">{{ $order->customer_phone }}</div>
+                                    <div class="text-[10px] text-blue-500 mt-1">Ref: {{ $order->fungsio->name ?? '-' }}</div>
                                 </td>
                                 <td class="p-4">
                                     <ul class="list-disc pl-4 text-xs text-gray-600 space-y-1">
@@ -143,4 +167,68 @@
             </div>
         </div>
     </div>
+
+    <div id="editBatchModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0" id="editBatchContent">
+            <div class="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-slate-800">Edit Info PO</h3>
+                <button onclick="closeEditBatchModal()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form action="{{ route('admin.batch.update_info') }}" method="POST" class="p-6 space-y-4">
+                @csrf
+                <input type="hidden" name="batch_id" value="{{ $activeBatch->id }}">
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Link Grup WhatsApp</label>
+                    <input type="url" name="whatsapp_link" value="{{ $activeBatch->whatsapp_link }}" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Bank</label>
+                        <input type="text" name="bank_name" value="{{ $activeBatch->bank_name }}" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">No. Rekening</label>
+                        <input type="number" name="bank_account_number" value="{{ $activeBatch->bank_account_number }}" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Atas Nama (Rekening)</label>
+                    <input type="text" name="bank_account_name" value="{{ $activeBatch->bank_account_name }}" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-2">
+                    <button type="button" onclick="closeEditBatchModal()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-bold hover:bg-gray-200">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openEditBatchModal() {
+            const modal = document.getElementById('editBatchModal');
+            const content = document.getElementById('editBatchContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeEditBatchModal() {
+            const modal = document.getElementById('editBatchModal');
+            const content = document.getElementById('editBatchContent');
+            
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+    </script>
 @endsection

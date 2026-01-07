@@ -44,21 +44,25 @@ Route::prefix('admin')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
         
         // BUAT PO BARU
-        
-        // Step 1: Info Batch (Nama, Bank, WA)
-        Route::get('/create-batch/step1', [AdminController::class, 'createBatchStep1'])->name('admin.batch.step1');
-        Route::post('/create-batch/step1', [AdminController::class, 'storeBatchStep1'])->name('admin.batch.storeStep1');
+        Route::get('/create-batch', [AdminController::class, 'createBatch'])->name('admin.batch.create');
+        // 1. Create Batch (Hanya Input Nama & Bank) -> Redirect ke Manage Menu
+        Route::post('/create-batch', [AdminController::class, 'storeBatch'])->name('admin.batch.store');
 
-        // Step 2: Kelola Produk (Tampil List & Modal Tambah)
-        Route::get('/create-batch/step2/{id}', [AdminController::class, 'createBatchStep2'])->name('admin.batch.step2');
+        // 2. Halaman Kelola Menu (Bekas Step 2)
+        Route::get('/batch/{id}/menu', [AdminController::class, 'manageMenu'])->name('admin.batch.menu');
 
-        // Action: Tambah Produk Baru via Modal
-        Route::post('/create-batch/add-product', [AdminController::class, 'addProductToBatch'])->name('admin.batch.addProduct');
+        // 3. Proses Tambah Produk (Action)
+        Route::post('/batch/add-product', [AdminController::class, 'addProductToBatch'])->name('admin.batch.add_product');
 
-        // Action: Selesai & Terbitkan (Aktifkan Batch)
-        Route::post('/create-batch/publish/{id}', [AdminController::class, 'publishBatch'])->name('admin.batch.publish');
+        // 4. Proses Publish (Opsional, jika ingin tombol Aktifkan PO di halaman menu)
+        Route::post('/batch/{id}/publish', [AdminController::class, 'publishBatch'])->name('admin.batch.publish');
 
         // OPERASIONAL & ARSIP
+        // Route update produk (Edit Menu)
+        Route::post('/product/update', [AdminController::class, 'updateProduct'])->name('admin.product.update');
+
+        // Route update Info Batch (Edit WA & Bank di Dashboard)
+        Route::post('/batch/update-info', [AdminController::class, 'updateBatchInfo'])->name('admin.batch.update_info');
 
         // Tutup PO
         Route::post('/close-batch/{id}', [AdminController::class, 'closeBatch'])->name('admin.batch.close');
@@ -77,6 +81,24 @@ Route::prefix('admin')->group(function () {
         
         // Simpan Produk Master (Opsional jika ada fitur master produk terpisah)
         Route::post('/product/store', [AdminController::class, 'storeProduct'])->name('admin.product.store');
+
+        // --- MANAJEMEN FUNGSIO (PENGURUS) ---
+        Route::get('/fungsios', [AdminController::class, 'manageFungsios'])->name('admin.fungsios.index'); // Halaman List & Input
+        Route::post('/fungsios', [AdminController::class, 'storeFungsio'])->name('admin.fungsios.store');   // Proses Simpan
+        Route::post('/fungsios/{id}/toggle', [AdminController::class, 'toggleFungsio'])->name('admin.fungsios.toggle'); // Aktif/Nonaktif
+
+        // --- SETTING KUOTA ---
+        // Halaman Kelola Kuota Batch Tertentu
+        Route::get('/batch/{id}/quotas', [AdminController::class, 'editBatchQuotas'])->name('admin.batch.quotas');
+        Route::post('/batch/{id}/quotas', [AdminController::class, 'updateBatchQuotas'])->name('admin.batch.quotas.update');
+
+        // Setting Default Divisi (Global)
+        Route::post('/division-defaults', [AdminController::class, 'updateDivisionDefaults'])->name('admin.division.defaults');
+
+        //Mail
+        // Halaman Kelola Template Email (Baru)
+        Route::get('/batch/{id}/mail', [App\Http\Controllers\AdminController::class, 'manageMail'])->name('admin.batch.mail');
+        Route::post('/batch/update-mail-template', [AdminController::class, 'updateMailTemplate'])->name('admin.batch.update_mail');
     });
 });
 

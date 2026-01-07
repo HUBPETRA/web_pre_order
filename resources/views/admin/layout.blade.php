@@ -30,6 +30,12 @@
                            {{ request()->routeIs('admin.analytics') || request()->routeIs('admin.archive') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:text-blue-600' }}">
                            Analitik & Riwayat
                         </a>
+
+                        <a href="{{ route('admin.fungsios.index') }}" 
+                            class="px-3 py-2 rounded-md text-sm font-medium transition 
+                            {{ request()->routeIs('admin.fungsios.*') ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:text-blue-600' }}">
+                            Manajemen Fungsio
+                        </a>
                     </div>
                 </div>
 

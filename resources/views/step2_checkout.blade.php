@@ -44,12 +44,34 @@
                         <input type="text" name="customer_name" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition" placeholder="Masukkan nama Anda" required>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Alamat Email</label>
+                        <input type="email" name="customer_email" required placeholder="contoh@email.com" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <p class="text-xs text-gray-400 mt-1">Kami akan mengirimkan notifikasi status pesanan ke email ini.</p>
+                    </div>
+
                     <div class="mb-8 group">
                         <label class="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Nomor WhatsApp</label>
                         <div class="relative">
                             <span class="absolute left-4 top-3.5 text-slate-400"><i class="fab fa-whatsapp text-lg"></i></span>
                             <input type="number" name="customer_phone" class="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition" placeholder="Contoh: 0812xxxx" required>
                         </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Nama Fungsio / Pengurus</label>
+                        <div class="relative">
+                            <select name="fungsio_id" required class="w-full border border-gray-300 rounded-lg px-4 py-2 appearance-none focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                                <option value="" disabled selected>-- Pilih Nama Fungsio --</option>
+                                @foreach($fungsios as $f)
+                                    <option value="{{ $f->id }}">{{ $f->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <i class="fas fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">Pilih nama pengurus yang mereferensikan Anda.</p>
                     </div>
 
                     <h2 class="font-bold text-xl mb-6 text-slate-800 flex items-center gap-2">

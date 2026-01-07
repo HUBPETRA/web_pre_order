@@ -46,13 +46,14 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <div class="lg:col-span-2">
+        <div class="lg:col-span-2 space-y-8">
+            
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
                     <h3 class="font-bold text-gray-700">Rincian Data Pesanan</h3>
-                    </div>
+                </div>
                 
-                <div class="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+                <div class="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-50 text-gray-500 uppercase text-xs sticky top-0 z-10 shadow-sm">
                             <tr>
@@ -77,6 +78,9 @@
                                             {{ $order->customer_phone }}
                                         </a>
                                     </div>
+                                    <div class="mt-1 text-[10px] text-blue-500 bg-blue-50 inline-block px-1 rounded">
+                                        Ref: {{ $order->fungsio->name ?? '-' }}
+                                    </div>
                                 </td>
                                 <td class="p-4 align-top">
                                     <ul class="list-none space-y-1 text-xs text-gray-600">
@@ -94,23 +98,7 @@
                                     @elseif($order->status == 'Ditolak')
                                         <span class="bg-red-100 text-red-700 border border-red-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Ditolak</span>
                                     @else
-                                        <div class="flex flex-col gap-1">
-                                            <span class="bg-yellow-100 text-yellow-700 border border-yellow-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider mb-1">Pending</span>
-                                            
-                                            <form action="{{ route('admin.order.update', $order->id) }}" method="POST">
-                                                @csrf <input type="hidden" name="status" value="Lunas">
-                                                <button type="submit" class="w-full bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 text-[10px] py-1 rounded font-bold transition">
-                                                    ✔ Terima
-                                                </button>
-                                            </form>
-                                            
-                                            <form action="{{ route('admin.order.update', $order->id) }}" method="POST">
-                                                @csrf <input type="hidden" name="status" value="Ditolak">
-                                                <button type="submit" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-[10px] py-1 rounded font-bold transition" onclick="return confirm('Tolak pesanan ini?')">
-                                                    ✖ Tolak
-                                                </button>
-                                            </form>
-                                        </div>
+                                        <span class="bg-yellow-100 text-yellow-700 border border-yellow-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Pending</span>
                                     @endif
                                 </td>
                             </tr>
@@ -126,9 +114,62 @@
                     </table>
                 </div>
             </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">
+                        <i class="fas fa-medal text-yellow-500"></i> Laporan Pencapaian Target Fungsio
+                    </h3>
+                </div>
+                
+                <div class="p-6">
+                    @foreach($quotasByDivision as $division => $quotas)
+                    <div class="mb-6 last:mb-0">
+                        <h4 class="font-bold text-xs uppercase text-gray-500 mb-3 border-b border-gray-100 pb-1">{{ $division }}</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            @foreach($quotas as $q)
+                            <div class="flex items-center justify-between border border-gray-100 p-3 rounded-lg hover:bg-gray-50 transition">
+                                <div>
+                                    <p class="font-bold text-sm text-slate-700">{{ $q->fungsio->name }}</p>
+                                    <p class="text-[10px] text-gray-400">Target: {{ $q->target_qty }} Porsi</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-lg font-bold {{ $q->achieved_qty >= $q->target_qty ? 'text-green-600' : 'text-blue-600' }}">
+                                        {{ $q->achieved_qty }}
+                                    </div>
+                                    <div class="text-[10px] text-gray-400">Terjual</div>
+                                </div>
+                                <div class="w-12 h-12 flex items-center justify-center ml-2">
+                                    @if($q->achieved_qty >= $q->target_qty)
+                                        <div class="text-green-500 bg-green-100 w-8 h-8 rounded-full flex items-center justify-center" title="Target Tercapai">
+                                            <i class="fas fa-check"></i>
+                                        </div>
+                                    @else
+                                        <div class="text-gray-300 text-xs font-bold" title="Belum Target">
+                                            {{ intval(($q->achieved_qty / max(1, $q->target_qty)) * 100) }}%
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+
         </div>
 
-        <div class="lg:col-span-1">
+        <div class="lg:col-span-1 space-y-6"> 
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 class="font-bold text-gray-700 mb-4 text-sm flex items-center gap-2">
+                    <i class="fas fa-chart-bar text-blue-500"></i> Grafik Menu Terlaris
+                </h3>
+                <div class="relative h-48 w-full">
+                    <canvas id="productChart"></canvas>
+                </div>
+            </div>
+
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden sticky top-24">
                 <div class="px-6 py-4 border-b bg-gray-50">
                     <h3 class="font-bold text-gray-700">Rekap Produk Terjual</h3>
@@ -148,11 +189,10 @@
                         </div>
                         
                         @php
+                            // Untuk arsip, kita bandingkan sold vs stok awal saat itu
                             $total_stock = $product->pivot->stock;
                             $sold = $product->pivot->sold;
                             $percent = $total_stock > 0 ? ($sold / $total_stock) * 100 : 0;
-                            
-                            // Warna bar berubah jika stok menipis
                             $barColor = 'bg-blue-500';
                             if($percent >= 90) $barColor = 'bg-red-500'; 
                             elseif($percent >= 70) $barColor = 'bg-yellow-500';
@@ -160,10 +200,6 @@
                         
                         <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden relative">
                             <div class="{{ $barColor }} h-2 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
-                        </div>
-                        <div class="flex justify-between text-[10px] mt-1 text-gray-400">
-                            <span>Terjual: {{ $sold }}</span>
-                            <span>Stok Awal: {{ $total_stock }}</span>
                         </div>
                     </div>
                     @endforeach
@@ -173,3 +209,57 @@
         
     </div>
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const ctx = document.getElementById('productChart').getContext('2d');
+        
+        // Data dari Controller
+        const labels = {!! json_encode($chartLabels) !!};
+        const dataSold = {!! json_encode($chartData) !!};
+
+        new Chart(ctx, {
+            type: 'bar', // Grafik Batang
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Porsi Terjual',
+                    data: dataSold,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)', // Warna Biru
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.7
+                }]
+            },
+            options: {
+                indexAxis: 'y', // MEMBUAT GRAFIK HORIZONTAL (Nama menu di kiri)
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { display: false, drawBorder: false },
+                        ticks: { stepSize: 1 }
+                    },
+                    y: {
+                        grid: { display: false, drawBorder: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw + ' Porsi';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+@endpush

@@ -15,7 +15,7 @@
         </p>
 
         <div class="flex flex-col gap-3">
-            <a href="{{ route('admin.batch.step1') }}" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-blue-500/30 transition transform hover:-translate-y-1 flex items-center justify-center gap-2">
+            <a href="{{ route('admin.batch.store') }}" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-blue-500/30 transition transform hover:-translate-y-1 flex items-center justify-center gap-2">
                 <i class="fas fa-plus-circle"></i> Buka Pre-Order Baru
             </a>
             
