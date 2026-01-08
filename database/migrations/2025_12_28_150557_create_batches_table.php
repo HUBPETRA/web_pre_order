@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('bank_account_number')->nullable();
             $table->string('bank_account_name')->nullable();
             $table->string('whatsapp_link')->nullable();
+            $table->string('close_date')->nullable();
             $table->boolean('is_active')->default(false);
             $table->timestamps();
         });

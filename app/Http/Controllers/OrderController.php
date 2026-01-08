@@ -90,6 +90,7 @@ class OrderController extends Controller
         $request->validate([
             'customer_name' => 'required|string|max:100',
             'customer_phone' => 'required|numeric',
+            'customer_email' => 'required|email',
             'fungsio_id' => 'required|exists:fungsios,id', // [BARU] Wajib pilih Fungsio
             'payment_proof' => [
                     'required',
@@ -134,6 +135,7 @@ class OrderController extends Controller
             'batch_id' => $activeBatch->id,
             'customer_name' => strip_tags($request->customer_name),
             'customer_phone' => $request->customer_phone,
+            'customer_email' => $request->customer_email,
             
             'fungsio_id' => $request->fungsio_id, // [BARU] INI KUNCINYA AGAR KUOTA OTOMATIS BERKURANG
             'total_amount' => $calculatedTotalAmount, // [BARU] Simpan total nominal
@@ -167,16 +169,16 @@ class OrderController extends Controller
         }
 
         // --- [BARU] KIRIM EMAIL NOTIFIKASI ---
-        // try {
-        //     // Cek apakah user mengisi email (berjaga-jaga)
-        //     if($order->customer_email) {
-        //         Mail::to($order->customer_email)->send(new OrderPlacedMail($order));
-        //     }
-        // } catch (\Exception $e) {
-        //     // Jika gagal kirim email (misal internet mati), jangan biarkan sistem error.
-        //     // Cukup catat di log, tapi biarkan user lanjut ke halaman sukses.
-        //     \Log::error("Gagal kirim email order #{$order->id}: " . $e->getMessage());
-        // }
+        try {
+            // Cek apakah user mengisi email (berjaga-jaga)
+            if($order->customer_email) {
+                Mail::to($order->customer_email)->send(new OrderPlacedMail($order));
+            }
+        } catch (\Exception $e) {
+            // Jika gagal kirim email (misal internet mati), jangan biarkan sistem error.
+            // Cukup catat di log, tapi biarkan user lanjut ke halaman sukses.
+            \Log::error("Gagal kirim email order #{$order->id}: " . $e->getMessage());
+        }
 
         session()->forget('cart');
         
