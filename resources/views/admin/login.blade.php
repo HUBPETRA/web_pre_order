@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Admin - Dapur Enak</title>
+    <title>Login Admin - Genta PO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -16,7 +16,7 @@
                 <div class="bg-white/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
                     <i class="fas fa-utensils text-4xl"></i>
                 </div>
-                <h2 class="text-3xl font-bold mb-2">Dapur Enak</h2>
+                <h2 class="text-3xl font-bold mb-2">Genta PO</h2>
                 <p class="text-blue-100">Management System</p>
             </div>
             <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
@@ -40,7 +40,7 @@
                     <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Email Admin</label>
                     <div class="relative">
                         <span class="absolute left-3 top-3 text-slate-400"><i class="fas fa-envelope"></i></span>
-                        <input type="email" name="email" class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition" placeholder="admin@dapurenak.com" required>
+                        <input type="email" name="email" class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition" placeholder="" required>
                     </div>
                 </div>
 
@@ -57,7 +57,7 @@
                 </button>
             </form>
             
-            <p class="text-center text-xs text-slate-400 mt-8">&copy; {{ date('Y') }} Dapur Enak Official</p>
+            <p class="text-center text-xs text-slate-400 mt-8">&copy; {{ date('Y') }} Genta PO Official</p>
         </div>
     </div>
 </body>

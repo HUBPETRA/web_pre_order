@@ -16,12 +16,12 @@
         
         <h1 class="text-3xl font-bold text-slate-800 mb-3">Pre-Order Sedang Tutup</h1>
         <p class="text-slate-500 mb-8 leading-relaxed">
-            Maaf, saat ini tidak ada kegiatan Pre-Order yang sedang berlangsung. Silakan tunggu informasi selanjutnya atau hubungi admin.
+            Maaf, saat ini tidak ada kegiatan Pre-Order yang sedang berlangsung. Silakan tunggu informasi selanjutnya.
         </p>
 
-        <a href="https://wa.me/6281234567890" class="inline-flex items-center gap-2 text-blue-600 font-bold hover:text-blue-800 transition">
+        {{-- <a href="https://wa.me/6281234567890" class="inline-flex items-center gap-2 text-blue-600 font-bold hover:text-blue-800 transition">
             <i class="fab fa-whatsapp"></i> Hubungi Contact Person
-        </a>
+        </a> --}}
         
         {{-- <div class="mt-12 pt-8 border-t border-gray-200">
             <p class="text-xs text-gray-400">Admin? <a href="{{ route('login') }}" class="underline hover:text-gray-600">Login disini</a></p>        </div>

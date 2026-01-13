@@ -35,7 +35,7 @@
     <nav class="bg-blue-600/90 backdrop-blur-sm shadow-lg sticky top-0 z-50">
         <div class="container mx-auto px-4 py-4 flex justify-between items-center">
             <div class="text-white font-bold text-xl flex items-center gap-2">
-                <i class="fas fa-utensils bg-white text-blue-600 p-2 rounded-full text-sm"></i> Dapur Enak PO
+                <i class="fas fa-utensils bg-white text-blue-600 p-2 rounded-full text-sm"></i> PO Genta
             </div>
             @if(isset($activeBatch))
                 <div class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full border border-blue-400 shadow-sm flex items-center gap-1">
@@ -60,8 +60,8 @@
     @endif
 
     <div class="text-center py-10 px-4">
-        <h1 class="text-3xl md:text-4xl font-bold text-blue-900 mb-2">Mau Makan Apa Hari Ini?</h1>
-        <p class="text-slate-500">Pilih menu favoritmu di bawah ini.</p>
+        <h1 class="text-3xl md:text-4xl font-bold text-blue-900 mb-2">Mau Pesan Apa Hari Ini?</h1>
+        <p class="text-slate-500">Pilih menu di bawah ini.</p>
     </div>
 
     <div class="container mx-auto px-4 max-w-5xl">

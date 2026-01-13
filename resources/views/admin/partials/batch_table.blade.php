@@ -17,6 +17,7 @@
             <div class="font-bold text-slate-800">{{ $batch->name }}</div>
             <div class="sm:hidden text-xs text-gray-500 mt-1">{{ $batch->created_at->format('d M Y') }}</div>
 
+            {{-- Logika Highlighting Search Result --}}
             @if(request('q'))
                 @php
                     $matchedProducts = $batch->products->filter(function($product) {
@@ -39,9 +40,15 @@
         <td class="p-4 text-gray-600 hidden sm:table-cell">{{ $batch->created_at->format('d M Y') }}</td>
         <td class="p-4">
             @if($batch->is_active)
-                <span class="bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded text-xs font-bold">● Aktif</span>
+                {{-- Tambahkan: inline-flex, items-center, gap-1, whitespace-nowrap --}}
+                <span class="bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap">
+                    <span>●</span> <span>Aktif</span>
+                </span>
             @else
-                <span class="bg-gray-100 text-gray-500 border border-gray-200 px-2 py-1 rounded text-xs font-bold">Arsip</span>
+                {{-- Tambahkan: inline-block, whitespace-nowrap --}}
+                <span class="bg-gray-100 text-gray-500 border border-gray-200 px-2 py-1 rounded text-xs font-bold inline-block whitespace-nowrap">
+                    Arsip
+                </span>
             @endif
         </td>
         <td class="p-4 text-right">
@@ -52,9 +59,11 @@
     </tr>
     @endforeach
     
+    {{-- Pagination Links --}}
     @if($batches->hasPages())
     <tr>
         <td colspan="4" class="p-4 bg-gray-50">
+            {{-- appends(['q' => request('q')]) Penting agar saat pindah halaman, pencarian tidak hilang --}}
             {{ $batches->appends(['q' => request('q')])->links() }}
         </td>
     </tr>

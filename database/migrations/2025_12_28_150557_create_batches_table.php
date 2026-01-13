@@ -15,14 +15,25 @@ return new class extends Migration
             $table->string('bank_account_number')->nullable();
             $table->string('bank_account_name')->nullable();
             $table->string('whatsapp_link')->nullable();
-            $table->string('close_date')->nullable();
+
+            // Banner
+            $table->string('banner_image')->nullable();
+            
+            // Kolom Template Email & Tanggal
+            $table->text('mail_message')->nullable();
+            $table->date('close_date')->nullable();
+            $table->date('pickup_date')->nullable(); // Nullable saat pembuatan awal
+            
+            // Denda & Status
+            $table->integer('fine_per_unit')->default(5000); 
             $table->boolean('is_active')->default(false);
+            $table->boolean('is_reminder_sent')->default(false);
+            
             $table->timestamps();
         });
     }
 
-
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('batches');
     }

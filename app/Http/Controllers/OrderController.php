@@ -7,21 +7,27 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Batch;
 use App\Models\Fungsio;
-use Illuminate\Support\Str; // untuk buat nama file acak
-use Illuminate\Support\Facades\Mail; // Untuk kirim email
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB; // [PENTING] Untuk Database Transaction
+use Illuminate\Support\Facades\Log;
 use App\Mail\OrderPlacedMail;
 
 class OrderController extends Controller
 {
-    // STEP 1: Tampilkan Menu dari BATCH AKTIF
+    /**
+     * STEP 1: Tampilkan Menu dari BATCH AKTIF
+     */
     public function index()
     {
+        // Ambil batch aktif beserta produk yang juga aktif
         $activeBatch = Batch::where('is_active', true)
-                            ->with(['products' => function($query) {
-                                $query->wherePivot('is_active', true);
-                            }])
-                            ->first();
+            ->with(['products' => function($query) {
+                $query->wherePivot('is_active', true);
+            }])
+            ->first();
 
+        // Jika tidak ada batch aktif, tampilkan halaman tutup
         if (!$activeBatch) {
             return view('po_closed'); 
         }
@@ -31,12 +37,15 @@ class OrderController extends Controller
         return view('step1_menu', compact('activeBatch', 'cart'));
     }
 
-    // STEP 2: Checkout
+    /**
+     * STEP 2: Validasi Keranjang & Checkout View
+     */
     public function checkout(Request $request)
     {
-        $quantities = $request->input('quantities');
+        $quantities = $request->input('quantities', []);
+        
         // Filter item yang jumlahnya > 0
-        $cartItems = array_filter($quantities, function($qty) { return $qty > 0; });
+        $cartItems = array_filter($quantities, fn($qty) => $qty > 0);
 
         if (empty($cartItems)) {
             return redirect()->route('step1')->with('error', 'Pilih minimal 1 item.');
@@ -49,18 +58,15 @@ class OrderController extends Controller
 
         foreach ($activeBatch->products as $product) {
             if (isset($cartItems[$product->id])) {
-                $qty = (int) $cartItems[$product->id]; // Pastikan integer
+                $qty = (int) $cartItems[$product->id];
                 
-                // --- VALIDASI STOK TAHAP 1 (Saat klik Checkout) ---
-                $currentStock = $product->pivot->stock;
-                $currentSold = $product->pivot->sold;
-                $available = $currentStock - $currentSold;
+                // --- VALIDASI STOK TAHAP 1 (Preview) ---
+                $available = $product->pivot->stock - $product->pivot->sold;
 
-                // Jika user minta lebih dari sisa stok
                 if ($qty > $available) {
-                    return redirect()->route('step1')->with('error', "Maaf, stok '$product->name' hanya tersisa $available porsi.");
+                    return redirect()->route('step1')
+                        ->with('error', "Maaf, stok '$product->name' hanya tersisa $available porsi.");
                 }
-                // --------------------------------------------------
 
                 $price = $product->pivot->price; 
                 $subtotal = $price * $qty;
@@ -76,119 +82,146 @@ class OrderController extends Controller
             }
         }
         
-        // Simpan keranjang yang sudah tervalidasi
+        // Simpan keranjang sementara ke session
         session()->put('cart', $cartItems);
+        
+        // Ambil data fungsio untuk dropdown
         $fungsios = Fungsio::where('is_active', true)->orderBy('name', 'asc')->get(); 
 
-        return view('step2_checkout', compact('selectedItems', 'totalPrice', 'activeBatch','fungsios'));
+        return view('step2_checkout', compact('selectedItems', 'totalPrice', 'activeBatch', 'fungsios'));
     }
 
-    // STEP 3: Simpan Order 
+    /**
+     * STEP 3: Proses Simpan Order (Database Transaction)
+     */
     public function store(Request $request)
     {
-        // 1. Validasi (Security Layer 1: Filter Input)
+        // 1. Validasi Input
         $request->validate([
-            'customer_name' => 'required|string|max:100',
+            'customer_name'  => 'required|string|max:100',
             'customer_phone' => 'required|numeric',
             'customer_email' => 'required|email',
-            'fungsio_id' => 'required|exists:fungsios,id', // [BARU] Wajib pilih Fungsio
-            'payment_proof' => [
-                    'required',
-                    'file',
-                    'image',
-                    'mimes:jpeg,png,jpg',
-                    'max:2048',
-            ],
+            'fungsio_id'     => 'required|exists:fungsios,id',
+            'payment_proof'  => 'required|file|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $activeBatch = \App\Models\Batch::where('is_active', true)->with('products')->first();
-        if(!$activeBatch) return redirect()->back()->with('error', 'Maaf, PO baru saja ditutup.');
+        $activeBatch = Batch::where('is_active', true)->with('products')->first();
+        if (!$activeBatch) {
+            return redirect()->back()->with('error', 'Maaf, PO baru saja ditutup.');
+        }
 
         $cart = session()->get('cart', []);
+        if (empty($cart)) {
+            return redirect()->route('step1')->with('error', 'Keranjang belanja kosong.');
+        }
 
-        // --- VALIDASI STOK TAHAP 2 (CRITICAL CHECK) ---
-        // Sekalian hitung Total Amount di sini biar efisien
-        $calculatedTotalAmount = 0; 
+        // 2. Upload Gambar (Dilakukan sebelum transaksi DB)
+        try {
+            $file = $request->file('payment_proof');
+            $randomName = Str::random(40) . '.' . $file->getClientOriginalExtension();
+            $file->storeAs('public/bukti', $randomName);
+        } catch (\Exception $e) {
+            Log::error("Gagal upload file: " . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal mengupload bukti pembayaran.');
+        }
 
-        foreach($activeBatch->products as $product) {
-            if(isset($cart[$product->id]) && $cart[$product->id] > 0) {
-                $qty = $cart[$product->id];
-                $available = $product->pivot->stock - $product->pivot->sold;
+        // 3. Database Transaction (Critical Section)
+        // Menggunakan transaction agar jika insert item gagal, header order & stok dibatalkan otomatis
+        try {
+            $order = DB::transaction(function () use ($request, $activeBatch, $cart, $randomName) {
+                
+                // A. Hitung Total & Validasi Stok Final (Locking logic simulation)
+                $calculatedTotalAmount = 0;
+                $itemsToInsert = [];
 
-                if ($qty > $available) {
-                    return redirect()->route('step1')->with('error', "Gagal memproses! Stok '$product->name' tidak mencukupi (Sisa: $available).");
+                foreach ($activeBatch->products as $product) {
+                    if (isset($cart[$product->id]) && $cart[$product->id] > 0) {
+                        $qty = $cart[$product->id];
+                        $available = $product->pivot->stock - $product->pivot->sold;
+
+                        // Cek Stok Terakhir
+                        if ($qty > $available) {
+                            throw new \Exception("Stok '$product->name' tidak mencukupi (Sisa: $available).");
+                        }
+
+                        $subtotal = $product->pivot->price * $qty;
+                        $calculatedTotalAmount += $subtotal;
+
+                        // Siapkan data untuk insert nanti
+                        $itemsToInsert[] = [
+                            'product' => $product,
+                            'qty' => $qty,
+                            'subtotal' => $subtotal
+                        ];
+                    }
                 }
 
-                // [BARU] Hitung total belanja untuk disimpan di header order
-                $calculatedTotalAmount += ($product->pivot->price * $qty);
-            }
-        }
-        // -------------------------------------------------------------
-
-        // 2. Upload Gambar
-        $file = $request->file('payment_proof');
-        $randomName = \Illuminate\Support\Str::random(32) . '.' . $file->getClientOriginalExtension();
-        $file->move(public_path('uploads/bukti'), $randomName);
-
-        // 3. Buat Header Order
-        $order = \App\Models\Order::create([
-            'batch_id' => $activeBatch->id,
-            'customer_name' => strip_tags($request->customer_name),
-            'customer_phone' => $request->customer_phone,
-            'customer_email' => $request->customer_email,
-            
-            'fungsio_id' => $request->fungsio_id, // [BARU] INI KUNCINYA AGAR KUOTA OTOMATIS BERKURANG
-            'total_amount' => $calculatedTotalAmount, // [BARU] Simpan total nominal
-            
-            'payment_proof' => $randomName,
-            'status' => 'Menunggu Verifikasi'
-        ]);
-
-        // 4. Simpan Detail Item & Update Stok
-        foreach($activeBatch->products as $product) {
-            if(isset($cart[$product->id]) && $cart[$product->id] > 0) {
-                
-                $qty = $cart[$product->id];
-                
-                // Kurangi Stok (Update Sold)
-                $currentSold = $product->pivot->sold;
-                $activeBatch->products()->updateExistingPivot($product->id, [
-                    'sold' => $currentSold + $qty
+                // B. Buat Header Order
+                $order = Order::create([
+                    'batch_id'       => $activeBatch->id,
+                    'customer_name'  => strip_tags($request->customer_name),
+                    'customer_phone' => $request->customer_phone,
+                    'customer_email' => $request->customer_email,
+                    'fungsio_id'     => $request->fungsio_id,
+                    'total_amount'   => $calculatedTotalAmount,
+                    'payment_proof'  => $randomName,
+                    'status'         => 'Menunggu Verifikasi'
                 ]);
 
-                // Simpan OrderItem
-                \App\Models\OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'product_name_snapshot' => $product->name,
-                    'quantity' => $qty,
-                    'price_snapshot' => $product->pivot->price,
-                    'subtotal' => $product->pivot->price * $qty
-                ]);
+                // C. Simpan Detail Item & Update Stok
+                foreach ($itemsToInsert as $item) {
+                    // Update Stok (Sold Increment)
+                    $product = $item['product'];
+                    $qty = $item['qty'];
+
+                    $activeBatch->products()->updateExistingPivot($product->id, [
+                        'sold' => $product->pivot->sold + $qty
+                    ]);
+
+                    // Create Order Item
+                    OrderItem::create([
+                        'order_id'              => $order->id,
+                        'product_id'            => $product->id,
+                        'product_name_snapshot' => $product->name,
+                        'quantity'              => $qty,
+                        'price_snapshot'        => $product->pivot->price,
+                        'subtotal'              => $item['subtotal']
+                    ]);
+                }
+
+                return $order;
+            });
+
+        } catch (\Exception $e) {
+            // Jika ada error stok/database, hapus file gambar yang terlanjur diupload agar tidak nyampah
+            if (\Illuminate\Support\Facades\Storage::exists('public/bukti/' . $randomName)) {
+                \Illuminate\Support\Facades\Storage::delete('public/bukti/' . $randomName);
             }
+
+            return redirect()->route('step1')->with('error', 'Gagal memproses pesanan: ' . $e->getMessage());
         }
 
-        // --- [BARU] KIRIM EMAIL NOTIFIKASI ---
+        // 4. Kirim Email Notifikasi (Di luar transaction agar tidak memperlambat DB)
         try {
-            // Cek apakah user mengisi email (berjaga-jaga)
-            if($order->customer_email) {
+            if ($order->customer_email) {
                 Mail::to($order->customer_email)->send(new OrderPlacedMail($order));
             }
         } catch (\Exception $e) {
-            // Jika gagal kirim email (misal internet mati), jangan biarkan sistem error.
-            // Cukup catat di log, tapi biarkan user lanjut ke halaman sukses.
-            \Log::error("Gagal kirim email order #{$order->id}: " . $e->getMessage());
+            Log::error("Gagal kirim email order #{$order->id}: " . $e->getMessage());
+            // Lanjut saja, jangan gagalkan pesanan hanya karena email error
         }
 
+        // 5. Bersihkan Session & Redirect
         session()->forget('cart');
-        
-        // Redirect ke route success
         return redirect()->route('success');
     }
 
+    /**
+     * STEP 4: Halaman Sukses
+     */
     public function success()
     {
-        $activeBatch = \App\Models\Batch::where('is_active', true)->first();
+        $activeBatch = Batch::where('is_active', true)->first();
         return view('step3_success', compact('activeBatch'));
     }
 }

@@ -17,6 +17,10 @@ class Product extends Model
         'is_active'
     ];
 
+    protected $casts = [
+        'price' => 'integer',
+        'is_active' => 'boolean',
+    ];
 
     public function batches()
     {

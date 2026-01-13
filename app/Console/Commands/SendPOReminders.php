@@ -5,68 +5,104 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\Batch;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
 class SendPOReminders extends Command
 {
+    /**
+     * Nama dan signature command console.
+     */
     protected $signature = 'po:send-reminders';
-    protected $description = 'Kirim reminder email H-1 penutupan PO';
 
+    /**
+     * Deskripsi command.
+     */
+    protected $description = 'Kirim reminder email kepada customer H-1 sebelum TANGGAL PENGAMBILAN barang';
+
+    /**
+     * Eksekusi command.
+     */
     public function handle()
     {
-        $this->info('Memeriksa jadwal reminder PO...');
+        $this->info('Memeriksa jadwal pengambilan barang...');
 
-        // 1. Cari Batch Aktif yang Belum Kirim Reminder
+        // 1. Cari Batch Aktif yang:
+        //    - Punya Tanggal Pengambilan (pickup_date tidak null)
+        //    - Belum dikirimi reminder (is_reminder_sent = false)
         $batches = Batch::where('is_active', true)
+                        ->whereNotNull('pickup_date') 
                         ->where('is_reminder_sent', false)
                         ->get();
 
+        if ($batches->isEmpty()) {
+            $this->info('Tidak ada batch yang memerlukan reminder pengambilan saat ini.');
+            return;
+        }
+
         foreach ($batches as $batch) {
-            $closeDate = Carbon::parse($batch->close_date);
-            $reminderDate = $closeDate->subDay(); // H-1
-            $today = Carbon::now();
+            $pickupDate = Carbon::parse($batch->pickup_date)->startOfDay();
+            $reminderDate = $pickupDate->copy()->subDay(); // H-1 Pengambilan
+            $today = Carbon::now()->startOfDay();
 
-            // Cek apakah HARI INI >= H-1 (Reminder Date)
-            // Note: Untuk testing, kamu bisa hapus kondisi 'if' ini agar bisa kirim kapan saja
-            if ($today->gte($reminderDate)) {
+            // Cek apakah HARI INI >= H-1 Pengambilan
+            if ($today->greaterThanOrEqualTo($reminderDate)) {
                 
-                $this->info("Mengirim reminder untuk: {$batch->name}");
+                $this->info("Memproses reminder pengambilan untuk Batch: {$batch->name}");
                 
-                // Ambil semua pesanan di batch ini yang valid (bukan Ditolak)
-                foreach ($batch->orders as $order) {
-                    if($order->status == 'Ditolak') continue; 
+                // Ambil Order Valid (Bukan Ditolak, Punya Email)
+                $orders = $batch->orders()
+                                ->where('status', '!=', 'Ditolak')
+                                ->whereNotNull('customer_email')
+                                ->with('orderItems') 
+                                ->get();
 
-                    // --- [LOGIKA REPLACE BARU] ---
-                    
-                    // 1. Buat List Item (Contoh: "- 2x Ayam\n- 1x Bebek")
+                $countSent = 0;
+
+                foreach ($orders as $order) {
+                    // Buat List Item Belanjaan
                     $itemList = "";
                     foreach($order->orderItems as $item) {
                         $itemList .= "- {$item->quantity}x {$item->product_name_snapshot}\n";
                     }
 
-                    // 2. Replace Placeholder
-                    $messageBody = $batch->mail_message;
-                    $messageBody = str_replace('{nama_pemesan}', $order->customer_name, $messageBody);
-                    $messageBody = str_replace('{nama_kegiatan}', $batch->name, $messageBody);
-                    $messageBody = str_replace('{detail_pesanan}', $itemList, $messageBody);
-                    // -----------------------------
+                    // Format Tanggal Indonesia
+                    $formattedDate = $pickupDate->translatedFormat('l, d F Y');
 
-                    // SIMULASI KIRIM (Catat ke Log)
-                    Log::channel('daily')->info("
-                        [EMAIL SIMULATION]
-                        To: {$order->customer_email}
-                        Subject: Reminder PO {$batch->name}
-                        Body: 
-                        {$messageBody}
-                        ------------------------------------------------
-                    ");
+                    // Replace Placeholder Template Pesan
+                    $messageBody = str_replace(
+                        ['{nama_pemesan}', '{nama_kegiatan}', '{detail_pesanan}'],
+                        [$order->customer_name, $batch->name, $itemList],
+                        $batch->mail_message
+                    );
+                    
+                    // Tambahkan Info Spesifik Tanggal Pengambilan
+                    $messageBody .= "\n\n================================\n";
+                    $messageBody .= "📅 JADWAL PENGAMBILAN BARANG:\n";
+                    $messageBody .= $formattedDate . "\n";
+                    $messageBody .= "================================";
+
+                    // Kirim Email via SMTP
+                    try {
+                        Mail::raw($messageBody, function ($message) use ($order, $batch) {
+                            $message->to($order->customer_email)
+                                    ->subject("🔔 Reminder Pengambilan: {$batch->name}");
+                        });
+
+                        $countSent++;
+
+                    } catch (\Exception $e) {
+                        Log::error("Gagal kirim reminder pengambilan ke {$order->customer_email}: " . $e->getMessage());
+                        $this->error("Gagal kirim ke: {$order->customer_email}");
+                    }
                 }
 
-                // Tandai sudah terkirim
+                // Tandai Batch ini sudah selesai diingatkan
                 $batch->update(['is_reminder_sent' => true]);
-                $this->info("Sukses! Semua email simulasi telah dikirim ke Log.");
+                $this->info("Selesai! {$countSent} email terkirim untuk batch ini.");
+
             } else {
-                $this->info("Batch {$batch->name} belum waktunya (Jadwal: {$reminderDate->format('d M Y')})");
+                $this->info("Batch '{$batch->name}' belum waktunya (Jadwal Ambil: " . $pickupDate->format('d M Y') . ")");
             }
         }
     }

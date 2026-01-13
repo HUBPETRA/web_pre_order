@@ -17,7 +17,7 @@
 
         <h1 class="text-2xl md:text-3xl font-bold text-slate-800 mb-2">Pesanan Diterima!</h1>
         <p class="text-slate-500 mb-8 leading-relaxed">
-            Terima kasih, data Anda dan bukti transfer telah kami terima. Admin kami akan segera memverifikasi pesanan Anda.
+            Terima kasih, data Anda dan bukti transfer telah kami terima. Kami akan segera memverifikasi pesanan Anda.
         </p>
         
         <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 mb-8 relative z-10">

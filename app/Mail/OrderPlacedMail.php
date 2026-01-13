@@ -8,34 +8,54 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use App\Models\Order; // <-- Import Model Order
+use App\Models\Order;
 
 class OrderPlacedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $order; // Variabel untuk menampung data pesanan
+    /**
+     * Instance Order yang akan digunakan di View.
+     * Secara otomatis bisa diakses di blade sebagai $order.
+     *
+     * @var \App\Models\Order
+     */
+    public $order;
 
-    // Terima data order saat class ini dipanggil
+    /**
+     * Create a new message instance.
+     */
     public function __construct(Order $order)
     {
         $this->order = $order;
     }
 
+    /**
+     * Get the message envelope.
+     */
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Konfirmasi Pesanan #' . $this->order->id . ' - Dapur Enak PO',
+            // Subject Email: Konfirmasi Pesanan #123 - Dapur Enak PO
+            subject: 'Konfirmasi Pesanan #' . $this->order->id . ' - ' . config('app.name', 'Dapur Enak PO'),
         );
     }
 
+    /**
+     * Get the message content definition.
+     */
     public function content(): Content
     {
         return new Content(
-            view: 'emails.order_placed', // Kita akan buat view ini di tahap 3
+            view: 'emails.order_placed',
         );
     }
 
+    /**
+     * Get the attachments for the message.
+     *
+     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     */
     public function attachments(): array
     {
         return [];

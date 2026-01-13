@@ -7,17 +7,26 @@ use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'batch_id', 
         'customer_name', 
-        'customer_email', // <-- BARU
+        'customer_email', 
         'customer_phone', 
-        'fungsio_id',     // <-- BARU
+        'fungsio_id',    
+        'total_amount', // [CRITICAL] Tambahkan ini agar nominal total tersimpan
         'payment_proof', 
-        'status'
+        'status',
+        'is_received'
     ];
 
-    // Relasi ke Item One to Many
+    protected $casts = [
+        'is_received' => 'boolean',
+        'total_amount' => 'integer',
+    ];
+
+    // Relasi ke Item (One to Many)
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
@@ -28,6 +37,8 @@ class Order extends Model
     {
         return $this->belongsTo(Batch::class);
     }
+
+    // Relasi ke Fungsio (Pengurus)
     public function fungsio()
     {
         return $this->belongsTo(Fungsio::class, 'fungsio_id');

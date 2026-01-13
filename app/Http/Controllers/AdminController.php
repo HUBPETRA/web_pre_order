@@ -5,19 +5,25 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+// Models
 use App\Models\Batch;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\DivisionDefault;
 use App\Models\BatchQuota;
 use App\Models\Fungsio;
-use App\Models\OrderItem; // Pastikan model OrderItem di-import
-use Illuminate\Support\Str; // Import Str
+use App\Models\OrderItem;
 
 class AdminController extends Controller
 {
+    // =========================================================================
     // 1. AUTHENTICATION (LOGIN/LOGOUT)
-    
+    // =========================================================================
+
     public function showLogin()
     {
         return view('admin.login');
@@ -32,10 +38,10 @@ class AdminController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
-            return redirect()->intended('/admin/dashboard');
+            return redirect()->intended('admin/dashboard');
         }
 
-        return back()->withErrors(['email' => 'Email atau password salah.']);
+        return back()->withErrors(['email' => 'Email atau password salah.'])->onlyInput('email');
     }
 
     public function logout(Request $request)
@@ -46,79 +52,107 @@ class AdminController extends Controller
         return redirect('/admin');
     }
 
+    // =========================================================================
     // 2. DASHBOARD & MONITORING
+    // =========================================================================
 
-    // Dashboard Utama (Batch Aktif)
+    /**
+     * Dashboard Utama (Batch Aktif)
+     */
     public function dashboard()
     {
-        // Cari batch yang sedang aktif
         $activeBatch = Batch::where('is_active', true)->with('products')->first();
 
-        // Jika tidak ada batch aktif, tampilkan halaman kosong
         if (!$activeBatch) {
-            return view('admin.dashboard_empty'); 
+            return view('admin.dashboard_empty');
         }
 
-        // Statistik Penjualan Batch Ini
+        // Ambil orders terbaru
         $orders = $activeBatch->orders()->orderBy('created_at', 'desc')->get();
         
-        // Ambil order yang statusnya "Menunggu Verifikasi"
+        // Filter pending orders (Optimized: Filter di Collection karena data sudah di-load)
         $pendingOrders = $orders->where('status', 'Menunggu Verifikasi');
 
         return view('admin.dashboard_active', compact('activeBatch', 'orders', 'pendingOrders'));
     }
 
-    // Dashboard Arsip
-    public function showArchive($id)
+    /**
+     * Dashboard Arsip (Detail Batch Lama)
+     */
+    public function showArchive(Request $request, $id)
     {
-        // 1. Load Batch beserta Produk & Data Kuota+Fungsio
-        $batch = \App\Models\Batch::with(['products', 'quotas.fungsio'])->findOrFail($id);
+        // 1. Load Batch dengan Relasi
+        $batch = Batch::with(['products', 'quotas.fungsio'])->findOrFail($id);
 
-        // 2. Ambil List Pesanan
-        $orders = \App\Models\Order::where('batch_id', $id)
-                    ->with('orderItems')
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+        // 2. Query Pesanan (dengan Search Filter)
+        $query = Order::where('batch_id', $id)
+                    ->with(['orderItems', 'fungsio'])
+                    ->orderBy('created_at', 'desc');
 
-        // 3. Siapkan Data Grafik Produk (Existing)
-        $chartLabels = [];
-        $chartData = [];
-        foreach($batch->products as $product) {
-            $chartLabels[] = $product->name;
-            $chartData[] = $product->pivot->sold; 
+        if ($request->has('q') && !empty($request->q)) {
+            $keyword = $request->q;
+            $query->where(function($q) use ($keyword) {
+                $q->where('customer_name', 'LIKE', "%{$keyword}%")
+                  ->orWhere('customer_email', 'LIKE', "%{$keyword}%")
+                  ->orWhere('customer_phone', 'LIKE', "%{$keyword}%");
+            });
         }
 
-        // 4. [BARU] Hitung Rapor Kinerja Fungsio di Batch Ini
-        // Kita hitung ulang berdasarkan order yang masuk di batch ini
-        foreach($batch->quotas as $quota) {
-            $realisasi = \App\Models\Order::where('batch_id', $id)
-                ->where('fungsio_id', $quota->fungsio_id)
-                ->where('status', '!=', 'Ditolak') // Pesanan ditolak tidak dihitung
-                ->withSum('orderItems', 'quantity') // Hitung total porsi (bukan orang)
-                ->get()
-                ->sum('order_items_sum_quantity');
-            
-            // Simpan data kalkulasi ke objek quota (temporary untuk view)
-            $quota->achieved_qty = $realisasi ?? 0;
-            
-            // Hitung persentase keberhasilan
-            $quota->percentage = $quota->target_qty > 0 
-                ? ($quota->achieved_qty / $quota->target_qty) * 100 
-                : 0;
+        $orders = $query->get();
+
+        // [AJAX] Jika request live search, kembalikan partial view
+        if ($request->ajax()) {
+            return view('admin.partials.order_rows', compact('orders'))->render();
         }
 
-        // Grouping berdasarkan divisi agar tampilan rapi
-        $quotasByDivision = $batch->quotas->groupBy(function($item) {
-            return $item->fungsio->division ?? 'Lainnya';
-        });
+        // 3. Siapkan Data Grafik
+        $chartLabels = $batch->products->pluck('name')->toArray();
+        $chartData   = $batch->products->pluck('pivot.sold')->toArray();
+
+        // 4. Hitung Realisasi Kuota, Persentase & Denda
+        // (Logika dipisahkan ke fungsi helper di bawah agar lebih bersih)
+        $this->calculateQuotaRealization($batch);
+
+        // Grouping Data Quota berdasarkan Divisi
+        $quotasByDivision = $batch->quotas->groupBy(fn($item) => $item->fungsio->division ?? 'Lainnya');
 
         return view('admin.dashboard_archive', compact('batch', 'orders', 'chartLabels', 'chartData', 'quotasByDivision'));
     }
 
-    // PEMBUATAN BATCH BARU
+    /**
+     * Helper: Menghitung Realisasi & Denda
+     */
+    private function calculateQuotaRealization($batch)
+    {
+        $multiplier = 1; // Placeholder: Nanti bisa diganti logika hari keterlambatan
 
+        foreach ($batch->quotas as $quota) {
+            // Hitung total terjual yang valid
+            $realisasi = Order::where('batch_id', $batch->id)
+                ->where('fungsio_id', $quota->fungsio_id)
+                ->where('status', '!=', 'Ditolak')
+                ->withSum('orderItems', 'quantity')
+                ->get()
+                ->sum('order_items_sum_quantity');
 
-    // STEP 1: Halaman Input Info Dasar
+            $quota->achieved_qty = $realisasi ?? 0;
+            
+            // Hitung Persentase
+            $quota->percentage = $quota->target_qty > 0 
+                ? ($quota->achieved_qty / $quota->target_qty) * 100 
+                : 0;
+
+            // Hitung Defisit & Denda
+            $deficit = max(0, $quota->target_qty - $quota->achieved_qty);
+            $quota->fine_amount = $deficit * ($batch->fine_per_unit ?? 0) * $multiplier;
+            $quota->deficit = $deficit;
+        }
+    }
+
+    // =========================================================================
+    // 3. MANAJEMEN BATCH (CREATE, MANAGE, CLOSE)
+    // =========================================================================
+
     public function createBatch()
     {
         if (Batch::where('is_active', true)->exists()) {
@@ -127,7 +161,6 @@ class AdminController extends Controller
         return view('admin.create_batch');
     }
 
-    // Simpan Draft Batch
     public function storeBatch(Request $request)
     {
         $request->validate([
@@ -136,47 +169,66 @@ class AdminController extends Controller
             'bank_account_number' => 'required|numeric',
             'bank_account_name' => 'required|string',
             'whatsapp_link' => 'required|url',
-            'close_date' => 'date'
+            'close_date' => 'required|date',
+            // Pickup date boleh kosong saat awal, tapi jika ada harus >= close_date
+            'pickup_date' => 'nullable|date|after_or_equal:close_date',
+            'banner_image' => 'nullable|image|max:2048'
         ]);
 
-        // Buat Batch 
-        // Template Default (Updated: Pakai {detail_pesanan})
+        // Upload Gambar Banner (Jika ada)
+        $imageName = null;
+        if ($request->hasFile('banner_image')) {
+            $imageName = time() . '_banner.' . $request->banner_image->extension();
+            // Simpan di public/uploads/banners
+            $request->banner_image->move(public_path('uploads/banners'), $imageName);
+        }
+
         $defaultTemplate = "Halo {nama_pemesan},\n\nTerima kasih sudah memesan di {nama_kegiatan}.\nBerikut adalah rincian pesanan Anda:\n\n{detail_pesanan}\n\nPO akan ditutup besok. Pastikan pembayaran sudah lunas.\n\nSalam,\nAdmin";
 
+        // Create Batch
         $batch = Batch::create([
             'name' => $request->name,
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
             'whatsapp_link' => $request->whatsapp_link,
+            'banner_image' => $imageName,
             'close_date' => $request->close_date,
+            'pickup_date' => $request->pickup_date, // <--- Simpan Tanggal Ambil
             'is_active' => true,
-            'mail_message' => $defaultTemplate, // <--- ISI DEFAULT BARU
+            'mail_message' => $defaultTemplate,
             'is_reminder_sent' => false
         ]);
 
-        // 3. Generate Kuota Otomatis (Fitur sebelumnya)
-        $activeFungsios = \App\Models\Fungsio::where('is_active', true)->get();
-        $defaults = \App\Models\DivisionDefault::pluck('default_quota', 'division_name')->toArray(); 
+        // Generate Default Quota
+        $activeFungsios = Fungsio::where('is_active', true)->get();
+        $defaults = DivisionDefault::pluck('default_quota', 'division_name')->toArray(); 
 
         foreach ($activeFungsios as $f) {
             $target = $defaults[$f->division] ?? 0;
-            \App\Models\BatchQuota::create([
+            BatchQuota::create([
                 'batch_id' => $batch->id,
                 'fungsio_id' => $f->id,
                 'target_qty' => $target
             ]);
         }
+
         return redirect()->route('admin.batch.menu', $batch->id)->with('success', 'Batch dibuat. Template email default telah dipasang.');
+    }
+
+    public function closeBatch($id)
+    {
+        $batch = Batch::findOrFail($id);
+        $batch->update(['is_active' => false]);
+        return redirect()->route('admin.analytics')->with('success', 'Batch PO Berhasil Ditutup.');
     }
 
     public function manageMail($id)
     {
-        $batch = \App\Models\Batch::findOrFail($id);
+        $batch = Batch::findOrFail($id);
         return view('admin.manage_mail', compact('batch'));
     }
 
-    // [UPDATE] Update Template (Redirectnya ubah agar kembali ke halaman mail, bukan dashboard)
     public function updateMailTemplate(Request $request)
     {
         $request->validate([
@@ -184,21 +236,20 @@ class AdminController extends Controller
             'mail_message' => 'required|string',
         ]);
 
-        $batch = Batch::findOrFail($request->batch_id);
-        $batch->update(['mail_message' => $request->mail_message]);
-
-        // Redirect back akan otomatis kembali ke halaman manage_mail
+        Batch::where('id', $request->batch_id)->update(['mail_message' => $request->mail_message]);
         return redirect()->back()->with('success', 'Template pesan email berhasil diperbarui.');
     }
 
-    // STEP 2: Halaman Kelola Produk
+    // =========================================================================
+    // 4. MANAJEMEN MENU / PRODUK
+    // =========================================================================
+
     public function manageMenu($id)
     {
-        $batch = \App\Models\Batch::with('products')->findOrFail($id);
+        $batch = Batch::with('products')->findOrFail($id);
         return view('admin.manage_menu', compact('batch'));
     }
 
-    // Tambah Produk via Modal
     public function addProductToBatch(Request $request)
     {
         $request->validate([
@@ -211,13 +262,10 @@ class AdminController extends Controller
         ]);
 
         // Upload Gambar
-        $imageName = null;
-        if ($request->hasFile('image')) {
-            $imageName = time() . '.' . $request->image->extension();
-            $request->image->move(public_path('uploads/products'), $imageName);
-        }
+        $imageName = time() . '.' . $request->image->extension();
+        $request->image->move(public_path('uploads/products'), $imageName); 
 
-        // Buat Produk 
+        // Buat Produk Master
         $product = Product::create([
             'name' => $request->name,
             'description' => $request->description,
@@ -226,7 +274,7 @@ class AdminController extends Controller
             'is_active' => true
         ]);
 
-        // Sambungkan ke Batch 
+        // Attach ke Pivot Batch
         $batch = Batch::findOrFail($request->batch_id);
         $batch->products()->attach($product->id, [
             'price' => $request->price,
@@ -238,24 +286,6 @@ class AdminController extends Controller
         return redirect()->route('admin.batch.menu', $request->batch_id)->with('success', 'Menu berhasil ditambahkan.');
     }
 
-    // FINAL STEP: Terbitkan (Aktifkan) PO
-    public function publishBatch($id)
-    {
-        $batch = Batch::with('products')->findOrFail($id);
-
-        if ($batch->products->isEmpty()) {
-            return redirect()->back()->with('error', 'Minimal harus ada 1 produk sebelum PO dibuka!');
-        }
-
-        // Aktifkan Batch
-        $batch->update(['is_active' => true]);
-
-        return redirect()->route('admin.dashboard')->with('success', 'Pre-Order Resmi Dibuka!');
-    }
-
-    // OPERASIONAL (UPDATE STATUS, TUTUP PO, DLL)
-
-    // FUNGSI 1: Update Produk (Menu)
     public function updateProduct(Request $request)
     {
         $request->validate([
@@ -264,22 +294,20 @@ class AdminController extends Controller
             'description' => 'required',
             'price' => 'required|numeric',
             'stock' => 'required|numeric',
-            'image' => 'nullable|image|max:2048', // Nullable: tidak wajib upload ulang
+            'image' => 'nullable|image|max:2048',
         ]);
 
         $product = Product::findOrFail($request->product_id);
         
-        // 1. Update Tabel Produk Master
         $dataToUpdate = [
             'name' => $request->name,
             'description' => $request->description,
         ];
 
-        // Cek jika ada upload gambar baru
         if ($request->hasFile('image')) {
-            // Hapus gambar lama jika ada (opsional, biar hemat storage)
+            // Hapus gambar lama
             if ($product->image && file_exists(public_path('uploads/products/' . $product->image))) {
-                unlink(public_path('uploads/products/' . $product->image));
+                @unlink(public_path('uploads/products/' . $product->image));
             }
             // Upload baru
             $imageName = time() . '.' . $request->image->extension();
@@ -289,9 +317,7 @@ class AdminController extends Controller
 
         $product->update($dataToUpdate);
 
-        // 2. Update Tabel Pivot (Harga & Stok di Batch ini)
-        // Kita perlu tahu batch_id nya. Ambil dari input hidden atau cari batch aktif.
-        // Asumsi: Kita edit produk dalam konteks batch yang sedang dibuka.
+        // Update Pivot
         if($request->has('batch_id')) {
             $batch = Batch::findOrFail($request->batch_id);
             $batch->products()->updateExistingPivot($product->id, [
@@ -303,150 +329,152 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Produk berhasil diperbarui!');
     }
 
-    // FUNGSI 2: Update Info Batch (Dashboard)
-    public function updateBatchInfo(Request $request)
-    {
-        $request->validate([
-            'batch_id' => 'required',
-            'whatsapp_link' => 'required|url',
-            'bank_name' => 'required',
-            'bank_account_number' => 'required',
-            'bank_account_name' => 'required',
-        ]);
-
-        $batch = Batch::findOrFail($request->batch_id);
-        $batch->update([
-            'whatsapp_link' => $request->whatsapp_link,
-            'bank_name' => $request->bank_name,
-            'bank_account_number' => $request->bank_account_number,
-            'bank_account_name' => $request->bank_account_name,
-        ]);
-
-        return redirect()->back()->with('success', 'Informasi PO berhasil diupdate.');
-    }
-
-    // Terima/Tolak Pesanan
-    public function updateOrderStatus(Request $request, $id)
-    {
-        $order = Order::with('orderItems')->findOrFail($id);
-        
-        if ($request->status == 'Ditolak' && $order->status != 'Ditolak') {
-            
-            $batch = Batch::findOrFail($order->batch_id);
-
-            foreach ($order->orderItems as $item) {
-                // Cari produk ini di tabel pivot batch
-                $pivotRow = $batch->products()->where('product_id', $item->product_id)->first();
-                
-                if($pivotRow) {
-                    $currentSold = $pivotRow->pivot->sold;
-                    
-                    // Update pivot: Kurangi angka 'sold'
-                    // max(0, ...) untuk menjaga agar tidak minus
-                    $batch->products()->updateExistingPivot($item->product_id, [
-                        'sold' => max(0, $currentSold - $item->quantity) 
-                    ]);
-                }
-            }
-        }
-
-        // Update status pesanan
-        $order->update(['status' => $request->status]);
-        
-        return redirect()->back()->with('success', 'Status pesanan diperbarui.');
-    }
-
-    // Matikan/Hidupkan Produk di Batch (Jika stok habis)
     public function toggleProduct($id)
     {
-        
         $activeBatch = Batch::where('is_active', true)->first();
         if($activeBatch) {
             $pivot = $activeBatch->products()->where('product_id', $id)->first();
             if($pivot) {
-                // Toggle status is_active di tabel pivot
                 $newStatus = !$pivot->pivot->is_active;
                 $activeBatch->products()->updateExistingPivot($id, ['is_active' => $newStatus]);
                 return redirect()->back()->with('success', 'Status produk diubah.');
             }
         }
-        
         return redirect()->back();
     }
-    // Halaman Grafik & List History (Halaman Utama Arsip)
-    public function analytics(Request $request)
-    {
-        // 1. Data untuk Grafik (Semua Batch)
-        $batchesForChart = \App\Models\Batch::orderBy('created_at', 'asc')->get();
-        $chartLabels = [];
-        $chartData = [];
 
-        foreach ($batchesForChart as $batch) {
-            $lunasCount = $batch->orders()->where('status', 'Lunas')->count();
-            $chartLabels[] = $batch->name;
-            $chartData[] = $lunasCount;
+    public function publishBatch($id)
+    {
+        $batch = Batch::with('products')->findOrFail($id);
+
+        if ($batch->products->isEmpty()) {
+            return redirect()->back()->with('error', 'Minimal harus ada 1 produk sebelum PO dibuka!');
         }
 
-        // 2. Data untuk Tabel List
-        $query = \App\Models\Batch::with('products')->orderBy('created_at', 'desc');
+        $batch->update(['is_active' => true]);
+        return redirect()->route('admin.dashboard')->with('success', 'Pre-Order Resmi Dibuka!');
+    }
 
-        // [PERBAIKAN] Logika Pencarian: Nama Batch ATAU Nama Produk
-        if ($request->has('q') && !empty($request->q)) {
-            $keyword = $request->q;
+    // =========================================================================
+    // 5. OPERASIONAL ORDER & INFO BATCH (UPDATE)
+    // =========================================================================
+
+    public function updateBatchInfo(Request $request)
+    {
+        $request->validate([
+            'batch_id' => 'required|exists:batches,id',
+            'whatsapp_link' => 'required|url',
+            'bank_name' => 'required|string',
+            'bank_account_number' => 'required',
+            'bank_account_name' => 'required|string',
+            'pickup_date' => 'nullable|date',
+            'banner_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
+        ]);
+
+        $batch = Batch::findOrFail($request->batch_id);
+        $oldLink = $batch->whatsapp_link;
+
+        $dataToUpdate = [
+            'whatsapp_link' => $request->whatsapp_link,
+            'bank_name' => $request->bank_name,
+            'bank_account_number' => $request->bank_account_number,
+            'bank_account_name' => $request->bank_account_name,
+            'pickup_date' => $request->pickup_date,
+        ];
+
+        // Logika Upload Banner Image
+        if ($request->hasFile('banner_image')) {
+            // Hapus gambar lama (Cek kolom banner_image)
+            if ($batch->banner_image && file_exists(public_path('uploads/banners/' . $batch->banner_image))) {
+                @unlink(public_path('uploads/banners/' . $batch->banner_image));
+            }
             
-            $query->where(function($q) use ($keyword) {
-                // Cari berdasarkan Nama Kegiatan PO
-                $q->where('name', 'LIKE', "%{$keyword}%")
-                  // ATAU Cari berdasarkan Nama Produk di dalamnya
-                  ->orWhereHas('products', function($subQuery) use ($keyword) {
-                      $subQuery->where('name', 'LIKE', "%{$keyword}%");
-                  });
-            });
+            // Upload baru
+            $file = $request->file('banner_image');
+            $imageName = time() . '_banner.' . $file->extension();
+            $file->move(public_path('uploads/banners'), $imageName);
+            
+            // Masukkan ke array update
+            $dataToUpdate['banner_image'] = $imageName;
         }
 
-        $batches = $query->paginate(10); 
+        $batch->update($dataToUpdate);
 
-        // Untuk Search AJAX (Live Search)
-        if ($request->ajax()) {
-            // Pastikan file 'admin.partials.batch_table' ada.
-            // Jika tidak ada/error, hapus blok if ini.
-            return view('admin.partials.batch_table', compact('batches'))->render();
+        // ... (Kode notifikasi email WA tetap sama) ...
+        if ($oldLink !== $request->whatsapp_link) {
+            $orders = Order::where('batch_id', $batch->id)
+                        ->where('status', '!=', 'Ditolak')
+                        ->whereNotNull('customer_email')
+                        ->get();
+            $countSent = 0;
+            foreach ($orders as $order) {
+                try {
+                    $message  = "Halo {$order->customer_name},\n\n";
+                    $message .= "PEMBERITAHUAN PENTING:\nLink Grup WhatsApp untuk kegiatan PO {$batch->name} telah berubah.\n\n";
+                    $message .= "Link Baru: " . $request->whatsapp_link . "\n\n";
+                    $message .= "Terima kasih,\nAdmin.";
+                    Mail::raw($message, function ($msg) use ($order, $batch) {
+                        $msg->to($order->customer_email)->subject("📢 UPDATE: Link Grup WhatsApp Baru ({$batch->name})");
+                    });
+                    $countSent++;
+                } catch (\Exception $e) {
+                    Log::error("Gagal kirim update WA: " . $e->getMessage());
+                }
+            }
+            if ($countSent > 0) {
+                return redirect()->back()->with('success', "Informasi diperbarui & Email notifikasi dikirim ke {$countSent} pemesan.");
+            }
         }
 
-        return view('admin.dashboard_analytics', compact('batches', 'chartLabels', 'chartData'));
+        return redirect()->back()->with('success', 'Informasi PO berhasil diperbarui.');
     }
 
-    // Tutup Batch 
-    public function closeBatch($id)
+    public function updateOrderStatus(Request $request, $id)
     {
-        $batch = Batch::findOrFail($id);
-        $batch->update(['is_active' => false]);
-        return redirect()->route('admin.analytics')->with('success', 'Batch PO Berhasil Ditutup.');
+        $order = Order::with('orderItems')->findOrFail($id);
+        
+        // Kembalikan stok jika Ditolak
+        if ($request->status == 'Ditolak' && $order->status != 'Ditolak') {
+            $batch = Batch::findOrFail($order->batch_id);
+            foreach ($order->orderItems as $item) {
+                $pivotRow = $batch->products()->where('product_id', $item->product_id)->first();
+                if($pivotRow) {
+                    $batch->products()->updateExistingPivot($item->product_id, [
+                        'sold' => max(0, $pivotRow->pivot->sold - $item->quantity) 
+                    ]);
+                }
+            }
+        }
+
+        $order->update(['status' => $request->status]);
+        return redirect()->back()->with('success', 'Status pesanan diperbarui.');
     }
 
-    // Manajemen Fungsio
-    // 1. Tampilkan Halaman Manajemen
+    public function toggleOrderReceived($id)
+    {
+        $order = Order::findOrFail($id);
+        $order->update(['is_received' => !$order->is_received]);
+        $statusMsg = $order->is_received ? 'sudah diambil.' : 'belum diambil.';
+        return redirect()->back()->with('success', 'Status pesanan: Barang ' . $statusMsg);
+    }
+
+    // =========================================================================
+    // 6. MANAJEMEN FUNGSIO & KUOTA
+    // =========================================================================
+
     public function manageFungsios()
     {
-        // Ambil data orang
         $fungsios = Fungsio::orderBy('created_at', 'desc')->get();
-        
-        // [BARU] Ambil data default divisi untuk form setting di halaman ini
         $defaults = DivisionDefault::all();
-        
         return view('admin.fungsios_index', compact('fungsios', 'defaults'));
     }
 
-    // 2. Proses Simpan Fungsio Baru
     public function storeFungsio(Request $request)
     {
-        // Validasi: Nama wajib, Email wajib & tidak boleh kembar
         $request->validate([
             'name' => 'required|string|max:50',
             'email' => 'required|email|unique:fungsios,email',
             'division' => 'required|string|max:50',
-        ], [
-            'email.unique' => 'Email ini sudah terdaftar untuk Fungsio lain.'
         ]);
 
         Fungsio::create([
@@ -459,59 +487,73 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Fungsio berhasil ditambahkan.');
     }
 
-    // 3. Ubah Status Aktif/Non-Aktif
+    // Update data Fungsio (Anggota)
+    public function fungsios_update(Request $request, $id)
+    {
+        // 1. Validasi input
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255', // Boleh ditambahkan rule unique jika perlu
+            'division' => 'required|string',
+        ]);
+
+        // 2. Cari data berdasarkan ID
+        $fungsio = \App\Models\Fungsio::findOrFail($id);
+
+        // 3. Update data
+        $fungsio->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'division' => $request->division,
+        ]);
+
+        // 4. Kembali dengan pesan sukses
+        return redirect()->back()->with('success', 'Data anggota berhasil diperbarui.');
+    }
+
     public function toggleFungsio($id)
     {
         $fungsio = Fungsio::findOrFail($id);
-        
-        // Balik statusnya (true jadi false, false jadi true)
         $fungsio->is_active = !$fungsio->is_active;
         $fungsio->save();
-
         $status = $fungsio->is_active ? 'diaktifkan' : 'dinonaktifkan';
         return redirect()->back()->with('success', "Fungsio berhasil $status.");
     }
-    // ------------------------------------------------------------------
-    // MANAJEMEN KUOTA PER BATCH (TARGET REAL)
-    // ------------------------------------------------------------------
-    // 1. Tampilkan Halaman Kelola Kuota
+
+    public function toggleFinePaid($id)
+    {
+        $quota = BatchQuota::findOrFail($id);
+        $quota->update(['is_fine_paid' => !$quota->is_fine_paid]);
+        $status = $quota->is_fine_paid ? 'LUNAS' : 'BELUM BAYAR';
+        return redirect()->back()->with('success', "Status denda diperbarui: $status");
+    }
+
     public function editBatchQuotas($id)
     {
-        $batch = \App\Models\Batch::with(['quotas.fungsio'])->findOrFail($id);
+        $batch = Batch::with(['quotas.fungsio'])->findOrFail($id);
         
-        // --- LOGIKA BARU: HITUNG REALISASI ---
-        // Kita loop setiap kuota untuk mencari total qty dari order yang masuk
+        // Hitung realisasi manual untuk halaman ini
         foreach($batch->quotas as $quota) {
-            // Hitung total quantity dari order_items milik fungsio ini di batch ini
-            $totalSold = \App\Models\Order::where('batch_id', $id)
+            $totalSold = Order::where('batch_id', $id)
                 ->where('fungsio_id', $quota->fungsio_id)
-                ->where('status', '!=', 'Ditolak') // Order ditolak tidak dihitung
-                ->withSum('orderItems', 'quantity') // Jumlahkan kolom quantity
+                ->where('status', '!=', 'Ditolak')
+                ->withSum('orderItems', 'quantity')
                 ->get()
-                ->sum('order_items_sum_quantity'); // Ambil totalnya
+                ->sum('order_items_sum_quantity');
             
-            // Simpan data sementara ke objek quota untuk dipakai di View
             $quota->achieved_qty = $totalSold ?? 0;
             $quota->remaining_qty = $quota->target_qty - ($totalSold ?? 0);
         }
-        // -------------------------------------
         
-        // Ambil Data Default Global
         $defaults = DivisionDefault::all();
-        
-        // Grouping berdasarkan divisi
-        $quotasByDivision = $batch->quotas->groupBy(function($item) {
-            return $item->fungsio->division ?? 'Lainnya';
-        });
+        $quotasByDivision = $batch->quotas->groupBy(fn($item) => $item->fungsio->division ?? 'Lainnya');
 
         return view('admin.batch_quotas', compact('batch', 'defaults', 'quotasByDivision'));
     }
 
-    // 2. Simpan Perubahan Target (Batch Ini Saja)
     public function updateBatchQuotas(Request $request, $id)
     {
-        $inputs = $request->input('quotas'); // Array dari form [fungsio_id => target_baru]
-        
+        $inputs = $request->input('quotas');
         if($inputs) {
             foreach ($inputs as $fungsio_id => $target) {
                 BatchQuota::updateOrCreate(
@@ -520,15 +562,12 @@ class AdminController extends Controller
                 );
             }
         }
-
-        return redirect()->back()->with('success', 'Target kuota untuk batch ini berhasil diperbarui.');
+        return redirect()->back()->with('success', 'Target kuota berhasil diperbarui.');
     }
 
-    // 3. Simpan Perubahan Default Global (Rumus Baku)
     public function updateDivisionDefaults(Request $request)
     {
-        $defaults = $request->input('defaults'); // Array dari form [NamaDivisi => Nilai]
-        
+        $defaults = $request->input('defaults');
         if($defaults) {
             foreach ($defaults as $divName => $val) {
                 DivisionDefault::updateOrCreate(
@@ -537,7 +576,35 @@ class AdminController extends Controller
                 );
             }
         }
-        
-        return redirect()->back()->with('success', 'Nilai default divisi berhasil disimpan. Akan berlaku untuk PO berikutnya.');
+        return redirect()->back()->with('success', 'Nilai default divisi berhasil disimpan.');
+    }
+
+    // =========================================================================
+    // 7. ANALYTICS & HISTORY
+    // =========================================================================
+
+    public function analytics(Request $request)
+    {
+        $batchesForChart = Batch::orderBy('created_at', 'asc')->get();
+        $chartLabels = $batchesForChart->pluck('name')->toArray();
+        $chartData = $batchesForChart->map(fn($batch) => $batch->orders()->where('status', 'Lunas')->count())->toArray();
+
+        $query = Batch::with('products')->orderBy('created_at', 'desc');
+
+        if ($request->has('q') && !empty($request->q)) {
+            $keyword = $request->q;
+            $query->where(function($q) use ($keyword) {
+                $q->where('name', 'LIKE', "%{$keyword}%")
+                  ->orWhereHas('products', fn($subQuery) => $subQuery->where('name', 'LIKE', "%{$keyword}%"));
+            });
+        }
+
+        $batches = $query->paginate(10); 
+
+        if ($request->ajax()) {
+            return view('admin.partials.batch_table', compact('batches'))->render();
+        }
+
+        return view('admin.dashboard_analytics', compact('batches', 'chartLabels', 'chartData'));
     }
 }

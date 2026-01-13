@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dapur Enak</title>
+    <title>Admin Genta PO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> </head>
@@ -74,7 +74,7 @@
 
     <footer class="bg-white border-t border-gray-200 mt-auto">
         <div class="container mx-auto px-6 py-4 text-center text-xs text-gray-400">
-            &copy; {{ date('Y') }} Dapur Enak Management System.
+            &copy; {{ date('Y') }} Genta PO Management System.
         </div>
     </footer>
 

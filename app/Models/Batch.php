@@ -10,15 +10,29 @@ class Batch extends Model
     use HasFactory;
 
     protected $fillable = [
-    'name', 
-    'bank_name', 
-    'bank_account_number', 
-    'bank_account_name', 
-    'whatsapp_link', 
-    'mail_message',      // <--- BARU
-    'close_date', 
-    'is_active',
-    'is_reminder_sent'   // <--- BARU
+        'name', 
+        'bank_name', 
+        'bank_account_number', 
+        'bank_account_name', 
+        'whatsapp_link',
+        'banner_image',
+        'mail_message',      
+        'close_date',
+        'pickup_date',
+        'fine_per_unit',
+        'is_active',
+        'is_reminder_sent'   
+    ];
+
+    /**
+     * Casting tipe data otomatis.
+     */
+    protected $casts = [
+        'close_date' => 'date',
+        'pickup_date' => 'date',
+        'is_active' => 'boolean',
+        'is_reminder_sent' => 'boolean',
+        'fine_per_unit' => 'integer',
     ];
 
     // Relasi ke Produk (Many-to-Many)

@@ -12,7 +12,27 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // =========================================================================
+        // JADWAL OTOMATISASI (CRON JOB)
+        // =========================================================================
+
+        // 1. [BARU] Alert untuk Admin (Setiap Pukul 07:00)
+        // Mengecek apakah besok PO tutup TAPI tanggal pengambilan belum diisi.
+        $schedule->command('po:alert-admin-pickup')
+                 ->dailyAt('07:00')
+                 ->withoutOverlapping(); // Mencegah command berjalan dobel jika server lemot
+
+        // 2. Reminder Pengambilan Barang untuk Customer (Setiap Pukul 08:00)
+        // Mengecek H-1 dari 'Pickup Date'.
+        $schedule->command('po:send-reminders')
+                 ->dailyAt('08:00')
+                 ->withoutOverlapping();
+
+        // 3. Reminder Target Kuota untuk Fungsio (Setiap Pukul 09:00)
+        // Mengecek H-3 s/d H-1 penutupan PO jika target belum tercapai.
+        $schedule->command('po:check-quotas')
+                 ->dailyAt('09:00')
+                 ->withoutOverlapping();
     }
 
     /**

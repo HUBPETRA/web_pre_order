@@ -44,6 +44,7 @@
             </thead>
             
             <tbody class="divide-y divide-gray-100" id="table-body">
+                {{-- Memanggil partial saat pertama kali load --}}
                 @include('admin.partials.batch_table', ['batches' => $batches])
             </tbody>
         </table>
@@ -80,35 +81,53 @@
         }
     });
 
-    // 2. SCRIPT LIVE SEARCH (AJAX)
+    // 2. SCRIPT LIVE SEARCH & PAGINATION (AJAX)
     $(document).ready(function() {
-        let timeout = null;
         
-        $('#live-search').on('keyup', function() {
-            clearTimeout(timeout); // Reset timer saat user mengetik
-            
-            let query = $(this).val();
+        // Fungsi inti untuk mengambil data via AJAX
+        // Url bisa berupa route search biasa, atau route pagination (page=2)
+        function fetch_data(url) {
             let loading = $('#search-loading');
+            loading.removeClass('hidden');
+
+            $.ajax({
+                url: url,
+                method: "GET",
+                success: function(response) {
+                    $('#table-body').html(response);
+                    loading.addClass('hidden');
+                },
+                error: function() {
+                    loading.addClass('hidden');
+                    console.error('Gagal memuat data.');
+                }
+            });
+        }
+
+        // A. Event saat Mengetik (Search)
+        let timeout = null;
+        $('#live-search').on('keyup', function() {
+            clearTimeout(timeout);
+            let query = $(this).val();
             
-            loading.removeClass('hidden'); // Tampilkan loading
-            
-            // Tunggu 500ms setelah user berhenti mengetik baru kirim request
+            // Kita kirim query ke URL dasar (otomatis reset ke page 1)
+            let base_url = "{{ route('admin.analytics') }}" + "?q=" + query;
+
             timeout = setTimeout(function() {
-                $.ajax({
-                    url: "{{ route('admin.analytics') }}",
-                    method: "GET",
-                    data: { q: query },
-                    success: function(response) {
-                        // Ganti isi tabel dengan hasil baru
-                        $('#table-body').html(response);
-                        loading.addClass('hidden');
-                    },
-                    error: function() {
-                        loading.addClass('hidden');
-                        console.error('Error fetching search results');
-                    }
-                });
+                fetch_data(base_url);
             }, 500);
+        });
+
+        // B. Event saat Klik Pagination (Supaya tidak reload halaman)
+        $(document).on('click', '.pagination a', function(event) {
+            event.preventDefault(); // Stop browser reload
+            
+            // Ambil URL lengkap dari link pagination (sudah mengandung ?page=X & q=...)
+            let url = $(this).attr('href'); 
+            
+            if(url) {
+                fetch_data(url);
+            }
         });
     });
 </script>

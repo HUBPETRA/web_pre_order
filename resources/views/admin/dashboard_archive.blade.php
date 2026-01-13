@@ -49,11 +49,20 @@
         <div class="lg:col-span-2 space-y-8">
             
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                <div class="px-6 py-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
                     <h3 class="font-bold text-gray-700">Rincian Data Pesanan</h3>
+                    
+                    <div class="relative w-full md:w-auto">
+                        <input type="text" id="live-search" 
+                               placeholder="Cari Nama / Email / HP..." 
+                               class="w-full md:w-64 pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm">
+                        
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <i id="search-loading" class="fas fa-spinner fa-spin absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hidden"></i>
+                    </div>
                 </div>
                 
-                <div class="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
+                <div class="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-50 text-gray-500 uppercase text-xs sticky top-0 z-10 shadow-sm">
                             <tr>
@@ -61,55 +70,11 @@
                                 <th class="p-4">Pemesan</th>
                                 <th class="p-4">Item Dibeli</th>
                                 <th class="p-4 text-center">Status</th>
+                                <th class="p-4 text-center">Pengambilan</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 bg-white">
-                            @forelse($orders as $order)
-                            <tr class="hover:bg-blue-50 transition group">
-                                <td class="p-4 text-gray-500 text-xs align-top w-24">
-                                    {{ $order->created_at->format('d/m/Y') }} <br>
-                                    <span class="text-[10px]">{{ $order->created_at->format('H:i') }}</span>
-                                </td>
-                                <td class="p-4 align-top">
-                                    <div class="font-bold text-slate-800">{{ $order->customer_name }}</div>
-                                    <div class="text-xs text-gray-500 flex items-center gap-1">
-                                        <i class="fab fa-whatsapp text-green-500"></i> 
-                                        <a href="https://wa.me/{{ $order->customer_phone }}" target="_blank" class="hover:underline hover:text-green-600">
-                                            {{ $order->customer_phone }}
-                                        </a>
-                                    </div>
-                                    <div class="mt-1 text-[10px] text-blue-500 bg-blue-50 inline-block px-1 rounded">
-                                        Ref: {{ $order->fungsio->name ?? '-' }}
-                                    </div>
-                                </td>
-                                <td class="p-4 align-top">
-                                    <ul class="list-none space-y-1 text-xs text-gray-600">
-                                        @foreach($order->orderItems as $item)
-                                            <li class="flex items-start gap-1">
-                                                <span class="font-bold text-slate-800 min-w-[20px]">{{ $item->quantity }}x</span> 
-                                                <span>{{ $item->product_name_snapshot }}</span>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                </td>
-                                <td class="p-4 text-center align-top">
-                                    @if($order->status == 'Lunas')
-                                        <span class="bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Lunas</span>
-                                    @elseif($order->status == 'Ditolak')
-                                        <span class="bg-red-100 text-red-700 border border-red-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Ditolak</span>
-                                    @else
-                                        <span class="bg-yellow-100 text-yellow-700 border border-yellow-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Pending</span>
-                                    @endif
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="4" class="p-12 text-center text-gray-400 italic bg-slate-50">
-                                    <i class="far fa-folder-open text-3xl mb-2 opacity-50"></i> <br>
-                                    Belum ada data pesanan masuk.
-                                </td>
-                            </tr>
-                            @endforelse
+                        <tbody id="table-body" class="divide-y divide-gray-100 bg-white">
+                            @include('admin.partials.order_rows')
                         </tbody>
                     </table>
                 </div>
@@ -118,7 +83,7 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
                     <h3 class="font-bold text-gray-700 flex items-center gap-2">
-                        <i class="fas fa-medal text-yellow-500"></i> Laporan Pencapaian Target Fungsio
+                        <i class="fas fa-medal text-yellow-500"></i> Laporan Pencapaian & Denda
                     </h3>
                 </div>
                 
@@ -126,30 +91,64 @@
                     @foreach($quotasByDivision as $division => $quotas)
                     <div class="mb-6 last:mb-0">
                         <h4 class="font-bold text-xs uppercase text-gray-500 mb-3 border-b border-gray-100 pb-1">{{ $division }}</h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        
+                        <div class="grid grid-cols-1 gap-3">
                             @foreach($quotas as $q)
                             <div class="flex items-center justify-between border border-gray-100 p-3 rounded-lg hover:bg-gray-50 transition">
-                                <div>
+                                
+                                <div class="w-1/3">
                                     <p class="font-bold text-sm text-slate-700">{{ $q->fungsio->name }}</p>
-                                    <p class="text-[10px] text-gray-400">Target: {{ $q->target_qty }} Porsi</p>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                                            Target: {{ $q->target_qty }}
+                                        </span>
+                                        @if($q->deficit > 0)
+                                            <span class="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 font-bold">
+                                                Kurang: {{ $q->deficit }}
+                                            </span>
+                                        @endif
+                                    </div>
                                 </div>
-                                <div class="text-right">
-                                    <div class="text-lg font-bold {{ $q->achieved_qty >= $q->target_qty ? 'text-green-600' : 'text-blue-600' }}">
+
+                                <div class="text-center w-1/4">
+                                    <div class="text-lg font-bold {{ $q->deficit <= 0 ? 'text-green-600' : 'text-blue-600' }}">
                                         {{ $q->achieved_qty }}
                                     </div>
-                                    <div class="text-[10px] text-gray-400">Terjual</div>
+                                    <div class="text-[9px] uppercase text-gray-400 font-bold tracking-wider">Terjual</div>
                                 </div>
-                                <div class="w-12 h-12 flex items-center justify-center ml-2">
-                                    @if($q->achieved_qty >= $q->target_qty)
-                                        <div class="text-green-500 bg-green-100 w-8 h-8 rounded-full flex items-center justify-center" title="Target Tercapai">
-                                            <i class="fas fa-check"></i>
+
+                                <div class="text-right w-1/3">
+                                    @if($q->deficit > 0)
+                                        {{-- TAMPILAN DENDA --}}
+                                        <div class="font-mono font-bold text-red-600 text-sm mb-1">
+                                            Rp {{ number_format($q->fine_amount) }}
                                         </div>
+                                        
+                                        {{-- TOMBOL TOGGLE BAYAR DENDA --}}
+                                        <form action="{{ route('admin.quota.toggle_fine', $q->id) }}" method="POST">
+                                            @csrf
+                                            @if($q->is_fine_paid)
+                                                <button type="submit" class="bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-green-200 transition flex items-center gap-1 ml-auto" title="Klik untuk batalkan">
+                                                    <i class="fas fa-check-double"></i> Lunas
+                                                </button>
+                                            @else
+                                                <button type="submit" class="bg-red-100 text-red-600 border border-red-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-red-600 hover:text-white transition flex items-center gap-1 ml-auto animate-pulse" title="Klik untuk tandai lunas">
+                                                    <i class="fas fa-hand-holding-usd"></i> Bayar
+                                                </button>
+                                            @endif
+                                        </form>
+
                                     @else
-                                        <div class="text-gray-300 text-xs font-bold" title="Belum Target">
-                                            {{ intval(($q->achieved_qty / max(1, $q->target_qty)) * 100) }}%
+                                        {{-- TAMPILAN AMAN --}}
+                                        <div class="flex flex-col items-end">
+                                            <div class="text-green-500 bg-green-100 w-8 h-8 rounded-full flex items-center justify-center mb-1">
+                                                <i class="fas fa-check"></i>
+                                            </div>
+                                            <span class="text-[10px] text-green-600 font-bold">Aman</span>
                                         </div>
                                     @endif
                                 </div>
+
                             </div>
                             @endforeach
                         </div>
@@ -161,6 +160,7 @@
         </div>
 
         <div class="lg:col-span-1 space-y-6"> 
+            
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 class="font-bold text-gray-700 mb-4 text-sm flex items-center gap-2">
                     <i class="fas fa-chart-bar text-blue-500"></i> Grafik Menu Terlaris
@@ -189,10 +189,10 @@
                         </div>
                         
                         @php
-                            // Untuk arsip, kita bandingkan sold vs stok awal saat itu
                             $total_stock = $product->pivot->stock;
                             $sold = $product->pivot->sold;
                             $percent = $total_stock > 0 ? ($sold / $total_stock) * 100 : 0;
+                            
                             $barColor = 'bg-blue-500';
                             if($percent >= 90) $barColor = 'bg-red-500'; 
                             elseif($percent >= 70) $barColor = 'bg-yellow-500';
@@ -212,22 +212,23 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
 <script>
+    // 1. CHART JS
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('productChart').getContext('2d');
-        
-        // Data dari Controller
         const labels = {!! json_encode($chartLabels) !!};
         const dataSold = {!! json_encode($chartData) !!};
 
         new Chart(ctx, {
-            type: 'bar', // Grafik Batang
+            type: 'bar',
             data: {
                 labels: labels,
                 datasets: [{
                     label: 'Porsi Terjual',
                     data: dataSold,
-                    backgroundColor: 'rgba(59, 130, 246, 0.7)', // Warna Biru
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
                     borderColor: 'rgba(59, 130, 246, 1)',
                     borderWidth: 1,
                     borderRadius: 4,
@@ -235,30 +236,46 @@
                 }]
             },
             options: {
-                indexAxis: 'y', // MEMBUAT GRAFIK HORIZONTAL (Nama menu di kiri)
+                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: {
-                        beginAtZero: true,
-                        grid: { display: false, drawBorder: false },
-                        ticks: { stepSize: 1 }
-                    },
-                    y: {
-                        grid: { display: false, drawBorder: false }
-                    }
+                    x: { beginAtZero: true, grid: { display: false }, ticks: { stepSize: 1 } },
+                    y: { grid: { display: false } }
                 },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.raw + ' Porsi';
-                            }
-                        }
-                    }
-                }
+                plugins: { legend: { display: false } }
             }
+        });
+    });
+
+    // 2. LIVE SEARCH (AJAX)
+    $(document).ready(function() {
+        let timeout = null;
+        
+        $('#live-search').on('keyup', function() {
+            clearTimeout(timeout); 
+            
+            let query = $(this).val();
+            let loading = $('#search-loading');
+            
+            loading.removeClass('hidden'); 
+            
+            // Debounce 500ms
+            timeout = setTimeout(function() {
+                $.ajax({
+                    url: "{{ url()->current() }}", 
+                    method: "GET",
+                    data: { q: query },
+                    success: function(response) {
+                        $('#table-body').html(response);
+                        loading.addClass('hidden');
+                    },
+                    error: function() {
+                        loading.addClass('hidden');
+                        console.error('Gagal mengambil data pencarian.');
+                    }
+                });
+            }, 500);
         });
     });
 </script>

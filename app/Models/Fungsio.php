@@ -9,8 +9,16 @@ class Fungsio extends Model
 {
     use HasFactory;
     
-    // Tambahkan 'division' ke dalam array
-    protected $fillable = ['name', 'email', 'division', 'is_active'];
+    protected $fillable = [
+        'name', 
+        'email', 
+        'division', 
+        'is_active'
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
 
     public function orders()
     {
