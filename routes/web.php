@@ -94,6 +94,8 @@ Route::prefix('admin')->group(function () {
 
         // --- PENGATURAN LAINNYA ---
         Route::post('/division-defaults', [AdminController::class, 'updateDivisionDefaults'])->name('admin.division.defaults');
+        // Route Aman untuk melihat Bukti Transfer
+        Route::get('/proof/{filename}', [AdminController::class, 'showProof'])->name('admin.proof.show');
     });
 });
 

@@ -8,10 +8,12 @@ use App\Models\OrderItem;
 use App\Models\Batch;
 use App\Models\Fungsio;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB; // [PENTING] Untuk Database Transaction
 use Illuminate\Support\Facades\Log;
 use App\Mail\OrderPlacedMail;
+
 
 class OrderController extends Controller
 {
@@ -119,7 +121,10 @@ class OrderController extends Controller
         try {
             $file = $request->file('payment_proof');
             $randomName = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            $file->storeAs('public/bukti', $randomName);
+            
+            // Simpan di folder privat (storage/app/transfers)
+            $file->storeAs('transfers', $randomName); 
+
         } catch (\Exception $e) {
             Log::error("Gagal upload file: " . $e->getMessage());
             return redirect()->back()->with('error', 'Gagal mengupload bukti pembayaran.');
@@ -194,8 +199,8 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             // Jika ada error stok/database, hapus file gambar yang terlanjur diupload agar tidak nyampah
-            if (\Illuminate\Support\Facades\Storage::exists('public/bukti/' . $randomName)) {
-                \Illuminate\Support\Facades\Storage::delete('public/bukti/' . $randomName);
+            if (Storage::exists('transfers/' . $randomName)) {
+                Storage::delete('transfers/' . $randomName);
             }
 
             return redirect()->route('step1')->with('error', 'Gagal memproses pesanan: ' . $e->getMessage());

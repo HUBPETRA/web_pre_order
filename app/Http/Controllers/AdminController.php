@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -606,5 +607,19 @@ class AdminController extends Controller
         }
 
         return view('admin.dashboard_analytics', compact('batches', 'chartLabels', 'chartData'));
+    }
+    // =========================================================================
+    // 8. SECURE FILE VIEWER (BUKTI TRANSFER)
+    // =========================================================================
+
+    public function showProof($filename)
+    {
+        // 1. Cek apakah file ada di folder privat 'transfers'
+        if (!Storage::exists('transfers/' . $filename)) {
+            abort(404); // File tidak ditemukan
+        }
+
+        // 2. Return file secara aman (Laravel otomatis mengatur Headers & Mime Type)
+        return Storage::response('transfers/' . $filename);
     }
 }

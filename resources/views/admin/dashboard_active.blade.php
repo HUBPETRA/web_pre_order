@@ -90,7 +90,7 @@
             <button onclick="openEditBatchModal()" class="absolute top-3 right-3 text-gray-300 hover:text-purple-600 transition p-1">
                <i class="fas fa-pen text-xs"></i>
            </button>
-           <p class="text-xs text-gray-500 font-bold uppercase mb-2">Banner Promo</p>
+           <p class="text-xs text-gray-500 font-bold uppercase mb-2">Banner</p>
            
            @if($activeBatch->banner_image)
                <div class="flex items-center gap-3">
@@ -155,11 +155,17 @@
                                         @endforeach
                                     </ul>
                                 </td>
+
                                 <td class="p-4 text-center align-top">
-                                    <a href="{{ asset('storage/bukti/' . $order->payment_proof) }}" target="_blank" class="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition">
-                                        <i class="fas fa-image"></i>
-                                    </a>
+                                    @if($order->payment_proof)
+                                        <a href="{{ route('admin.proof.show', $order->payment_proof) }}" target="_blank" class="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Lihat Bukti">
+                                            <i class="fas fa-image"></i>
+                                        </a>
+                                    @else
+                                        <span class="text-gray-300 text-xs">-</span>
+                                    @endif
                                 </td>
+                                
                                 <td class="p-4 text-right align-top space-x-1">
                                     <form action="{{ route('admin.order.update', $order->id) }}" method="POST" class="inline-block">
                                         @csrf
