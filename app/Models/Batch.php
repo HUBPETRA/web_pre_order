@@ -15,13 +15,15 @@ class Batch extends Model
         'bank_account_number', 
         'bank_account_name', 
         'whatsapp_link',
-        'banner_image',
-        'mail_message',      
+        'banner_image',     
         'close_date',
         'pickup_date',
         'fine_per_unit',
         'is_active',
-        'is_reminder_sent'   
+        'is_reminder_sent',
+        'pickup_location',
+        'starting_capital',
+        'income',
     ];
 
     /**

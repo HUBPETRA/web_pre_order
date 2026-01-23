@@ -49,109 +49,116 @@
             @endif
         </div>
     </nav>
-
-    @if(session('error'))
-    <div class="container mx-auto px-4 mt-6">
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm relative" role="alert">
-            <strong class="font-bold">Oops!</strong>
-            <span class="block sm:inline">{{ session('error') }}</span>
+    <div class="p-5">
+        @if(session('error'))
+        <div class="container mx-auto px-4 mt-6">
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm relative" role="alert">
+                <strong class="font-bold">Oops!</strong>
+                <span class="block sm:inline">{{ session('error') }}</span>
+            </div>
         </div>
-    </div>
-    @endif
+        @endif
+        <div class="flex max-w-5xl items-center justify-center mx-auto mt-6">
+            <img src="{{ asset('uploads/banners/' . $activeBatch->banner_image) }}"alt="Banner {{ $activeBatch->name }}" 
+                    class="w-full">
+        </div>
+        <div class="text-center py-10 px-4">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-900 mb-2">Mau Pesan Apa?</h1>
+            <p class="text-slate-500">Pilih menu di bawah ini.</p>
+        </div>
 
-    <div class="text-center py-10 px-4">
-        <h1 class="text-3xl md:text-4xl font-bold text-blue-900 mb-2">Mau Pesan Apa Hari Ini?</h1>
-        <p class="text-slate-500">Pilih menu di bawah ini.</p>
-    </div>
-
-    <div class="container mx-auto px-4 max-w-5xl">
-        <form action="{{ route('step2') }}" method="POST">
-            @csrf
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                @foreach($activeBatch->products as $product)
+        <div class="container mx-auto px-4 max-w-5xl">
+            <form action="{{ route('step2') }}" method="POST">
+                @csrf
                 
-                @php 
-                    // Hitung Sisa Stok
-                    $sisaStok = $product->pivot->stock - $product->pivot->sold; 
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    @foreach($activeBatch->products as $product)
                     
-                    // Jika sisa < 0 (kesalahan DB), anggap 0
-                    if($sisaStok < 0) $sisaStok = 0;
-                @endphp
+                    @php 
+                        // Hitung Sisa Stok
+                        $sisaStok = $product->pivot->stock - $product->pivot->sold; 
+                        
+                        // Jika sisa < 0 (kesalahan DB), anggap 0
+                        if($sisaStok < 0) $sisaStok = 0;
+                    @endphp
 
-                <div class="animate-card bg-white rounded-2xl shadow-md overflow-hidden border border-slate-100 flex flex-col h-full hover:shadow-xl transition-all duration-300 relative">
-                    
-                    <div class="h-48 bg-slate-200 flex items-center justify-center overflow-hidden relative group">
-                        @if($product->image)
-                            <img src="{{ asset('uploads/products/' . $product->image) }}" 
-                                alt="{{ $product->name }}" 
-                                class="w-full h-full object-cover transition duration-300 group-hover:scale-110 {{ $sisaStok == 0 ? 'grayscale' : '' }}">
-                        @else
-                            <i class="fas fa-image text-5xl opacity-50 text-slate-400"></i>
-                        @endif
+                    <div class="animate-card bg-white rounded-2xl shadow-md overflow-hidden border border-slate-100 flex flex-col h-full hover:shadow-xl transition-all duration-300 relative">
                         
-                        <span class="absolute top-2 right-2 {{ $sisaStok == 0 ? 'bg-red-600' : 'bg-black bg-opacity-60' }} text-white text-xs px-2 py-1 rounded font-bold shadow-sm">
-                            {{ $sisaStok == 0 ? 'HABIS' : 'Sisa: ' . $sisaStok }}
-                        </span>
-                    </div>
-                    
-                    <div class="p-5 flex flex-col flex-grow">
-                        <h3 class="font-bold text-xl text-slate-800 mb-1 {{ $sisaStok == 0 ? 'text-gray-400 line-through' : '' }}">{{ $product->name }}</h3>
-                        <p class="text-sm text-slate-500 mb-4">{{ $product->desc }}</p>
-                        
-                        <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                            <span class="text-blue-700 font-extrabold text-lg {{ $sisaStok == 0 ? 'text-gray-400' : '' }}">Rp {{ number_format($product->price, 0, ',', '.') }}</span>
+                        <div class="h-48 bg-slate-200 flex items-center justify-center overflow-hidden relative group">
+                            @if($product->image)
+                                <img src="{{ asset('uploads/products/' . $product->image) }}" 
+                                    alt="{{ $product->name }}" 
+                                    class="w-full h-full object-cover transition duration-300 group-hover:scale-110 {{ $sisaStok == 0 ? 'grayscale' : '' }}">
+                            @else
+                                <i class="fas fa-image text-5xl opacity-50 text-slate-400"></i>
+                            @endif
                             
-                            <div class="flex items-center bg-slate-50 rounded-full border border-slate-200 p-1" id="control-{{ $product->id }}">
+                            <span class="absolute top-2 right-2 {{ $sisaStok == 0 ? 'bg-red-600' : 'bg-black bg-opacity-60' }} text-white text-xs px-2 py-1 rounded font-bold shadow-sm">
+                                {{ $sisaStok == 0 ? 'HABIS' : 'Sisa: ' . $sisaStok }}
+                            </span>
+                        </div>
+
+                        <div class="p-5 flex flex-col flex-grow">
+                            <h3 class="font-bold text-xl text-slate-800 mb-1 {{ $sisaStok == 0 ? 'text-gray-400 line-through' : '' }}">{{ $product->name }}</h3>
+                            <p class="text-sm text-slate-500 mb-4">{{ $product->description }}</p>
+                            
+                            <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                                <span class="text-blue-700 font-extrabold text-lg {{ $sisaStok == 0 ? 'text-gray-400' : '' }}">Rp {{ number_format($product->price, 0, ',', '.') }}</span>
                                 
-                                <button type="button" 
-                                        onclick="updateQty({{ $product->id }}, -1, {{ $sisaStok }})" 
-                                        class="w-8 h-8 flex items-center justify-center bg-white text-slate-600 rounded-full shadow-sm hover:text-red-500 disabled:opacity-50"
-                                        {{ $sisaStok == 0 ? 'disabled' : '' }}>
-                                    -
-                                </button>
-                                
-                                <input type="number" 
-                                       id="input-{{ $product->id }}" 
-                                       name="quantities[{{ $product->id }}]" 
-                                       value="{{ $cart[$product->id] ?? 0 }}" 
-                                       data-price="{{ $product->price }}"
-                                       class="qty-input w-10 text-center bg-transparent border-none focus:ring-0 p-0 text-sm font-bold text-slate-700" 
-                                       readonly>
-                                
-                                <button type="button" 
-                                        id="btn-plus-{{ $product->id }}"
-                                        onclick="updateQty({{ $product->id }}, 1, {{ $sisaStok }})" 
-                                        class="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-                                        {{ $sisaStok == 0 ? 'disabled' : '' }}>
-                                    +
-                                </button>
+                                <div class="flex items-center bg-slate-50 rounded-full border border-slate-200 p-1" id="control-{{ $product->id }}">
+                                    
+                                    <button type="button" 
+                                            onclick="updateQty({{ $product->id }}, -1, {{ $sisaStok }})" 
+                                            class="w-8 h-8 flex items-center justify-center bg-white text-slate-600 rounded-full shadow-sm hover:text-red-500 disabled:opacity-50"
+                                            {{ $sisaStok == 0 ? 'disabled' : '' }}>
+                                        -
+                                    </button>
+                                    
+                                    <input type="number" 
+                                        id="input-{{ $product->id }}" 
+                                        name="quantities[{{ $product->id }}]"
+                                        value="{{ $cart[$product->id] ?? 0 }}" 
+                                        data-price="{{ $product->price }}"
+                                        class="qty-input w-10 text-center bg-transparent border-none focus:ring-0 p-0 text-sm font-bold text-slate-700" 
+                                        readonly>
+                                    
+                                    <button type="button" 
+                                            id="btn-plus-{{ $product->id }}"
+                                            onclick="updateQty({{ $product->id }}, 1, {{ $sisaStok }})" 
+                                            class="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                            {{ $sisaStok == 0 ? 'disabled' : '' }}>
+                                        +
+                                    </button>
+                                </div>
                             </div>
-                        </div>
 
-                        <div id="msg-{{ $product->id }}" class="hidden text-[10px] text-red-500 font-bold text-center mt-2 animate-pulse">
-                            Maksimal stok tercapai!
-                        </div>
+                            <div id="msg-{{ $product->id }}" class="hidden text-[10px] text-red-500 font-bold text-center mt-2 animate-pulse">
+                                Maksimal stok tercapai!
+                            </div>
 
+                        </div>
+                    </div>
+                    
+                    @endforeach
+                </div>
+
+                <div id="sticky-footer" class="fixed bottom-6 left-0 right-0 px-4 z-40 transform translate-y-[150%] transition-transform duration-500">
+                    <div class="container mx-auto max-w-4xl bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-blue-100 p-4 flex items-center justify-between ring-1 ring-black/5">
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">Total Harga</p>
+                            <p class="text-2xl font-bold text-blue-700 leading-none" id="grand-total">Rp 0</p>
+                        </div>
+                        <button id="btn-next" type="submit" disabled class="bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg cursor-not-allowed grayscale transition-all duration-300">
+                            Lanjut Pemesanan <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
                     </div>
                 </div>
-                @endforeach
-            </div>
 
-            <div id="sticky-footer" class="fixed bottom-6 left-0 right-0 px-4 z-40 transform translate-y-[150%] transition-transform duration-500">
-                <div class="container mx-auto max-w-4xl bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-blue-100 p-4 flex items-center justify-between ring-1 ring-black/5">
-                    <div>
-                        <p class="text-xs text-slate-500 font-medium">Total Estimasi</p>
-                        <p class="text-2xl font-bold text-blue-700 leading-none" id="grand-total">Rp 0</p>
-                    </div>
-                    <button id="btn-next" type="submit" disabled class="bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg cursor-not-allowed grayscale transition-all duration-300">
-                        Lanjut Isi Data <i class="fas fa-arrow-right ml-2"></i>
-                    </button>
-                </div>
-            </div>
-
-        </form>
+            </form>
+        </div> 
     </div>
+
+ 
 
     <script>
         function updateQty(id, change, maxStock) {

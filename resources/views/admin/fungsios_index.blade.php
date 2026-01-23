@@ -4,14 +4,14 @@
 {{-- DEFINISI DIVISI (HARDCODED) --}}
 {{-- Ubah nama-nama divisi di sini, otomatis akan berubah di semua form dan tabel di bawah --}}
 @php 
-    $divs = ['Acara', 'Humas', 'Perlengkapan', 'Konsumsi', 'Keamanan', 'Lainnya']; 
+    $divs = ['BPH', 'METER', 'LITER', 'FOTO', 'ILLUS', 'RND', 'DC', 'IT', 'FUNDING']; 
 @endphp
 
 <div class="max-w-7xl mx-auto">
     <div class="flex items-center justify-between mb-8">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">Manajemen SDM & Kuota</h1>
-            <p class="text-sm text-gray-500">Kelola daftar anggota dan standar target penjualan divisi.</p>
+            <h1 class="text-2xl font-bold text-slate-800">Manajemen Fungsio & Kuota</h1>
+            <p class="text-sm text-gray-500">Kelola daftar fungsio dan standar target penjualan divisi.</p>
         </div>
         <a href="{{ route('admin.dashboard') }}" class="text-gray-500 hover:text-blue-600 font-bold text-sm">
             <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
@@ -28,8 +28,8 @@
                         <i class="fas fa-sliders-h text-xl"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-lg">Rumus Default</h3>
-                        <p class="text-[10px] text-slate-400">Target otomatis saat buat PO baru.</p>
+                        <h3 class="font-bold text-lg">Kuota Default</h3>
+                        <p class="text-[10px] text-slate-400">Berubah otomatis saat buat PO baru.</p>
                     </div>
                 </div>
                 
@@ -61,7 +61,7 @@
                 <div class="mt-6 bg-slate-700/30 p-3 rounded-lg border border-slate-600">
                     <p class="text-[10px] text-slate-400 leading-relaxed">
                         <i class="fas fa-info-circle text-blue-400 mr-1"></i> 
-                        Perubahan di sini <b>tidak mempengaruhi</b> PO yang sedang berjalan. Ini hanya template untuk PO masa depan.
+                        Perubahan di sini <b>tidak mempengaruhi</b> PO yang sedang berjalan.
                     </p>
                 </div>
             </div>

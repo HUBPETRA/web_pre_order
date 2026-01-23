@@ -17,6 +17,8 @@ return new class extends Migration
             $table->date('last_reminded_at')->nullable();
             $table->boolean('is_fine_paid')->default(false);
 
+            $table->decimal('paid_amount', 15, 2)->default(0);
+
             $table->timestamps();
             
             // Mencegah duplikasi (1 fungsio max 1 row per batch)

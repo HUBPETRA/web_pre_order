@@ -23,16 +23,16 @@
         <div class="container">
             <div class="header">
                 <h2 style="margin:0;">Pesanan Diterima!</h2>
-                <p style="margin:5px 0 0 0; opacity: 0.9;">Menunggu Verifikasi Admin</p>
+                <p style="margin:5px 0 0 0; opacity: 0.9;">Menunggu Verifikasi</p>
             </div>
             
             <div class="content">
                 <p>Halo, <strong>{{ $order->customer_name }}</strong>!</p>
-                <p>Terima kasih telah memesan di <strong>{{ $order->batch->name ?? 'Dapur Enak' }}</strong>. Data pesanan dan bukti pembayaran Anda telah kami terima.</p>
+                <p>Terima kasih telah memesan di <strong>{{ $order->batch->name ?? 'PO Genta' }}</strong>. Data pesanan dan bukti pembayaran Anda telah kami terima.</p>
 
                 @if(isset($order->batch->whatsapp_link) && $order->batch->whatsapp_link)
                 <div style="text-align: center; margin: 25px 0; padding: 20px; background-color: #f0fdf4; border-radius: 10px; border: 1px dashed #25D366;">
-                    <p style="margin-bottom: 15px; color: #166534; font-size: 0.9em;">Agar tidak ketinggalan info pengiriman & stok:</p>
+                    <p style="margin-bottom: 15px; color: #166534; font-size: 0.9em;">Agar tidak ketinggalan info pengambilan:</p>
                     <a href="{{ $order->batch->whatsapp_link }}" class="btn-wa">
                         Jangan lupa gabung grup WhatsApp
                     </a>
@@ -81,7 +81,7 @@
             </div>
 
             <div class="footer">
-                &copy; {{ date('Y') }} Dapur Enak PO System.<br>
+                &copy; {{ date('Y') }} PO Genta<br>
                 Email ini dikirim secara otomatis, mohon jangan dibalas.
             </div>
         </div>

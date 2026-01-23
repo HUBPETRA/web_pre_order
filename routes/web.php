@@ -67,16 +67,11 @@ Route::prefix('admin')->group(function () {
         Route::post('/batch/add-product', [AdminController::class, 'addProductToBatch'])->name('admin.batch.add_product');
         Route::post('/product/update', [AdminController::class, 'updateProduct'])->name('admin.product.update'); // Edit Menu
         Route::post('/product/{id}/toggle', [AdminController::class, 'toggleProduct'])->name('admin.product.toggle'); // Aktif/Nonaktif Item
-        // Route::post('/product/store', [AdminController::class, 'storeProduct'])->name('admin.product.store'); // (Opsional Master)
 
         // --- MANAJEMEN KUOTA ---
         Route::get('/batch/{id}/quotas', [AdminController::class, 'editBatchQuotas'])->name('admin.batch.quotas');
         Route::post('/batch/{id}/quotas', [AdminController::class, 'updateBatchQuotas'])->name('admin.batch.quotas.update');
         Route::post('/quota/{id}/toggle-fine', [AdminController::class, 'toggleFinePaid'])->name('admin.quota.toggle_fine'); // Denda Lunas
-
-        // --- MANAJEMEN EMAIL TEMPLATE ---
-        Route::get('/batch/{id}/mail', [AdminController::class, 'manageMail'])->name('admin.batch.mail');
-        Route::post('/batch/update-mail-template', [AdminController::class, 'updateMailTemplate'])->name('admin.batch.update_mail');
 
         // --- MANAJEMEN ORDER (PESANAN MASUK) ---
         Route::post('/order/{id}/update', [AdminController::class, 'updateOrderStatus'])->name('admin.order.update'); // Terima/Tolak
@@ -94,7 +89,7 @@ Route::prefix('admin')->group(function () {
 
         // --- PENGATURAN LAINNYA ---
         Route::post('/division-defaults', [AdminController::class, 'updateDivisionDefaults'])->name('admin.division.defaults');
-        // Route Aman untuk melihat Bukti Transfer
+        //Bukti Transfer
         Route::get('/proof/{filename}', [AdminController::class, 'showProof'])->name('admin.proof.show');
     });
 });

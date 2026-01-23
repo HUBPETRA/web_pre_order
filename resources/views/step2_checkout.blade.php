@@ -106,7 +106,7 @@
                     <div class="mb-5">
                         <label class="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Alamat Email</label>
                         <input type="email" id="input-email" name="customer_email" required placeholder="contoh@email.com" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
-                        <p class="text-[10px] text-gray-400 mt-1 ml-1">Bukti pesanan akan dikirim ke email ini.</p>
+                        <p class="text-[10px] text-gray-400 mt-1 ml-1">Laporan pesanan akan dikirim ke email ini.</p>
                     </div>
 
                     <div class="mb-8 group">
@@ -131,7 +131,7 @@
                                 <i class="fas fa-chevron-down text-xs"></i>
                             </div>
                         </div>
-                        <p class="text-[10px] text-gray-400 mt-1 ml-1">Pilih nama pengurus yang mereferensikan Anda.</p>
+                        <p class="text-[10px] text-gray-400 mt-1 ml-1">Pilih nama pengurus yang Anda refrensikan.</p>
                     </div>
 
                     <h2 class="font-bold text-xl mb-6 text-slate-800 flex items-center gap-2 pt-4 border-t border-dashed border-gray-100">

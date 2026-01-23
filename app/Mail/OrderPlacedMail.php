@@ -37,7 +37,7 @@ class OrderPlacedMail extends Mailable
     {
         return new Envelope(
             // Subject Email: Konfirmasi Pesanan #123 - Dapur Enak PO
-            subject: 'Konfirmasi Pesanan #' . $this->order->id . ' - ' . config('app.name', 'Dapur Enak PO'),
+            subject: 'Konfirmasi Pesanan #' . $this->order->id . ' - ' . config('app.name', 'PO Genta'),
         );
     }
 

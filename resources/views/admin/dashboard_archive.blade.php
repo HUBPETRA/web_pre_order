@@ -24,23 +24,34 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Total Pesanan</p>
-            <h2 class="text-3xl font-extrabold text-slate-800">{{ count($orders) }}</h2>
-            <p class="text-xs text-gray-400 mt-1">Transaksi tercatat</p>
+            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Modal Awal</p>
+            <h2 class="text-xl font-bold text-slate-700">Rp {{ number_format($financials['modal'], 0, ',', '.') }}</h2>
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Pesanan Lunas</p>
-            <h2 class="text-3xl font-extrabold text-green-600">{{ $orders->where('status', 'Lunas')->count() }}</h2>
-            <p class="text-xs text-gray-400 mt-1">Transaksi berhasil</p>
+            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Total Pemasukan</p>
+            <h2 class="text-xl font-bold text-blue-600">Rp {{ number_format($financials['total_income'], 0, ',', '.') }}</h2>
+            <p class="text-[10px] text-gray-400">Penjualan + Denda</p>
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Dibatalkan</p>
-            <h2 class="text-3xl font-extrabold text-red-500">{{ $orders->where('status', 'Ditolak')->count() }}</h2>
-            <p class="text-xs text-gray-400 mt-1">Transaksi gagal/ditolak</p>
+            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Keuntungan Bersih</p>
+            <h2 class="text-2xl font-extrabold {{ $financials['profit'] >= 0 ? 'text-green-600' : 'text-red-500' }}">
+                Rp {{ number_format($financials['profit'], 0, ',', '.') }}
+            </h2>
+            @if($financials['profit'] < 0)
+                <span class="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold">RUGI</span>
+            @else
+                <span class="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded font-bold">PROFIT</span>
+            @endif
+        </div>
+
+        <div class="bg-blue-50 p-5 rounded-xl border border-blue-100">
+            <p class="text-xs text-blue-500 font-bold uppercase mb-1">Total Order Lunas</p>
+            <h2 class="text-xl font-bold text-blue-800">{{ $orders->where('status', 'Lunas')->count() }} <span class="text-sm font-normal">Transaksi</span></h2>
         </div>
     </div>
 

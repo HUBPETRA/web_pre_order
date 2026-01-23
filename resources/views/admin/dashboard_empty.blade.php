@@ -11,7 +11,7 @@
         <h1 class="text-2xl font-bold text-slate-800 mb-2">Belum Ada Kegiatan PO Aktif</h1>
         <p class="text-slate-500 mb-8 text-sm leading-relaxed">
             Saat ini tidak ada Pre-Order yang sedang berjalan. <br>
-            Silakan buat kegiatan baru atau lihat data lama.
+            Silakan buat kegiatan baru.
         </p>
 
         <div class="flex flex-col gap-3">

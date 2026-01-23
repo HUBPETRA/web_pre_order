@@ -4,7 +4,7 @@
     <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-800">Analitik & Riwayat</h1>
-            <p class="text-gray-500">Pantau performa penjualan dan arsip kegiatan lama.</p>
+            <p class="text-gray-500">Performa Penjualan dan Arsip Kegiatan.</p>
         </div>
         
         <div class="relative w-full md:w-auto">
@@ -22,7 +22,7 @@
     </div>
 
     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
-        <h3 class="font-bold text-lg mb-4 text-slate-700">Tren Pesanan Lunas</h3>
+        <h3 class="font-bold text-lg mb-4 text-slate-700">Grafik Keuntungan & Pesanan</h3>
         <div class="relative h-64 w-full">
             <canvas id="salesChart"></canvas>
         </div>
@@ -39,7 +39,7 @@
                     <th class="p-4">Nama Kegiatan / Menu</th>
                     <th class="p-4 hidden sm:table-cell">Tanggal</th>
                     <th class="p-4">Status</th>
-                    <th class="p-4 text-right">Aksi</th>
+                    <th class="p-4 text-right">Detail</th>
                 </tr>
             </thead>
             
@@ -55,29 +55,79 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     // 1. Script Grafik
-    const ctx = document.getElementById('salesChart').getContext('2d');
+    const ctx = document.getElementById('analyticsChart').getContext('2d');
     new Chart(ctx, {
-        type: 'line',
+        type: 'bar', // Tipe dasar Bar
         data: {
             labels: {!! json_encode($chartLabels) !!},
-            datasets: [{
-                label: 'Pesanan Lunas',
-                data: {!! json_encode($chartData) !!},
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                borderColor: 'rgba(37, 99, 235, 1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: '#fff',
-                pointBorderColor: 'rgba(37, 99, 235, 1)',
-                pointRadius: 4
-            }]
+            datasets: [
+                {
+                    // DATASET 1: KEUNTUNGAN (Garis)
+                    label: 'Keuntungan Bersih (Rp)',
+                    data: {!! json_encode($profitData) !!},
+                    type: 'line', // Override jadi Line
+                    borderColor: 'rgb(34, 197, 94)', // Hijau
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    borderWidth: 3,
+                    yAxisID: 'y1', // Sumbu Y Kanan (Uang)
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    // DATASET 2: PRODUK TERJUAL (Bar)
+                    label: 'Total Produk Terjual (Pcs)',
+                    data: {!! json_encode($soldData) !!},
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)', // Biru
+                    borderColor: 'rgb(59, 130, 246)',
+                    borderWidth: 1,
+                    yAxisID: 'y', // Sumbu Y Kiri (Jumlah)
+                    barPercentage: 0.5
+                }
+            ]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, grid: { borderDash: [2, 4] } }, x: { grid: { display: false } } },
-            plugins: { legend: { display: false } }
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'Jumlah Produk (Pcs)' },
+                    grid: { display: false } // Hilangkan grid kiri biar bersih
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: true, text: 'Keuntungan (Rp)' },
+                    grid: { drawOnChartArea: true } // Grid ikut yang kanan
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                // Format Rupiah untuk dataset Keuntungan
+                                if (context.datasetIndex === 0) { 
+                                    label += new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(context.parsed.y);
+                                } else {
+                                    label += context.parsed.y;
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
         }
     });
 

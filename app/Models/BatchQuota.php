@@ -14,7 +14,8 @@ class BatchQuota extends Model
         'fungsio_id', 
         'target_qty', 
         'last_reminded_at',
-        'is_fine_paid'
+        'is_fine_paid',
+        'paid_amount'
     ];
 
     protected $casts = [

@@ -35,8 +35,9 @@ class OrderController extends Controller
         }
 
         $cart = session()->get('cart', []);
-        
-        return view('step1_menu', compact('activeBatch', 'cart'));
+        $banner_image = $activeBatch->banner_image;
+
+        return view('step1_menu', compact('activeBatch', 'cart','banner_image'));
     }
 
     /**
@@ -218,6 +219,7 @@ class OrderController extends Controller
 
         // 5. Bersihkan Session & Redirect
         session()->forget('cart');
+        session()->put('last_order_id', $order->id);
         return redirect()->route('success');
     }
 
@@ -227,6 +229,15 @@ class OrderController extends Controller
     public function success()
     {
         $activeBatch = Batch::where('is_active', true)->first();
-        return view('step3_success', compact('activeBatch'));
+
+        $orderId = session('last_order_id');
+        
+        if (!$orderId) {
+            return redirect()->route('step1');
+        }
+
+        $order = Order::with('orderItems')->find($orderId);
+
+        return view('step3_success', compact('activeBatch', 'order'));
     }
 }

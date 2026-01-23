@@ -62,6 +62,16 @@
                             @enderror
                         </div>
 
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Modal Awal (Rp) <span class="text-red-500">*</span></label>
+                            <input type="number" name="starting_capital" class="w-full border border-gray-300 rounded-lg p-3" placeholder="0" required>
+                        </div>
+
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Lokasi Pengambilan</span></label>
+                            <input type="text" name="pickup_location" class="w-full border border-gray-300 rounded-lg p-3" placeholder="Contoh: Lobi Gedung A" required>
+                        </div>
+
                         <div class="col-span-2">
                             <label class="block text-sm font-bold text-gray-700 mb-2">Link Grup WhatsApp <span class="text-red-500">*</span></label>
                             <div class="flex rounded-lg shadow-sm">

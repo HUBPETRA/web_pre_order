@@ -19,6 +19,9 @@ use App\Models\BatchQuota;
 use App\Models\Fungsio;
 use App\Models\OrderItem;
 
+// Mail
+use App\Mail\OrderVerifiedMail;
+
 class AdminController extends Controller
 {
     // =========================================================================
@@ -111,13 +114,42 @@ class AdminController extends Controller
         $chartData   = $batch->products->pluck('pivot.sold')->toArray();
 
         // 4. Hitung Realisasi Kuota, Persentase & Denda
-        // (Logika dipisahkan ke fungsi helper di bawah agar lebih bersih)
+        // Total Denda
         $this->calculateQuotaRealization($batch);
 
+        // LOGIKA PROFIT
+        // 1. Pemasukan dari Penjualan (Order Lunas)
+        $salesIncome = Order::where('batch_id', $batch->id)
+                            ->where('status', 'Lunas')
+                            ->sum('total_amount');
+
+        // 2. Pemasukan dari Denda (Paid Fines)
+        $fineIncome = 0;
+        foreach($batch->quotas as $q) {
+            if($q->is_fine_paid) {
+                $fineIncome += $q->fine_amount;
+            }
+        }
+
+        // 3. Total Pemasukan & Keuntungan Bersih
+        $totalIncome = $salesIncome + $fineIncome;
+        $netProfit = $totalIncome - $batch->starting_capital;
+
+        // Update kolom income di DB agar sinkron (Opsional tapi bagus untuk cache)
+        $batch->update(['income' => $totalIncome]);
+
+        // Kirim data keuangan ke view
+        $financials = [
+            'modal' => $batch->starting_capital,
+            'sales' => $salesIncome,
+            'fines' => $fineIncome,
+            'total_income' => $totalIncome,
+            'profit' => $netProfit
+        ];
         // Grouping Data Quota berdasarkan Divisi
         $quotasByDivision = $batch->quotas->groupBy(fn($item) => $item->fungsio->division ?? 'Lainnya');
 
-        return view('admin.dashboard_archive', compact('batch', 'orders', 'chartLabels', 'chartData', 'quotasByDivision'));
+        return view('admin.dashboard_archive', compact('batch', 'orders', 'chartLabels', 'chartData', 'quotasByDivision','financials'));
     }
 
     /**
@@ -125,10 +157,25 @@ class AdminController extends Controller
      */
     private function calculateQuotaRealization($batch)
     {
-        $multiplier = 1; // Placeholder: Nanti bisa diganti logika hari keterlambatan
+        $now = \Carbon\Carbon::now();
+        $closeDate = \Carbon\Carbon::parse($batch->close_date);
+        
+        // 1. Hitung Multiplier Denda
+        // Base: 10.000
+        // Tambahan: 10.000 per minggu setelah tutup
+        $weeksLate = 0;
+        
+        // Hanya hitung minggu terlambat jika PO sudah tutup
+        if ($now->greaterThan($closeDate)) {
+            // diffInWeeks menghitung selisih minggu penuh (7 hari, 14 hari, dst)
+            $weeksLate = $closeDate->diffInWeeks($now);
+        }
+
+        $baseFine = 10000;
+        $multiplier = $baseFine + ($weeksLate * 10000);
 
         foreach ($batch->quotas as $quota) {
-            // Hitung total terjual yang valid
+            // Hitung Realisasi (Sama seperti sebelumnya)
             $realisasi = Order::where('batch_id', $batch->id)
                 ->where('fungsio_id', $quota->fungsio_id)
                 ->where('status', '!=', 'Ditolak')
@@ -137,16 +184,15 @@ class AdminController extends Controller
                 ->sum('order_items_sum_quantity');
 
             $quota->achieved_qty = $realisasi ?? 0;
-            
-            // Hitung Persentase
-            $quota->percentage = $quota->target_qty > 0 
-                ? ($quota->achieved_qty / $quota->target_qty) * 100 
-                : 0;
+            $quota->deficit = max(0, $quota->target_qty - $quota->achieved_qty);
 
-            // Hitung Defisit & Denda
-            $deficit = max(0, $quota->target_qty - $quota->achieved_qty);
-            $quota->fine_amount = $deficit * ($batch->fine_per_unit ?? 0) * $multiplier;
-            $quota->deficit = $deficit;
+            // LOGIKA DENDA
+            if ($quota->is_fine_paid) {
+                $quota->fine_amount = $quota->paid_amount;
+            } else {
+                // Jika BELUM LUNAS, gunakan rumus dinamis (Defisit x Multiplier saat ini)
+                $quota->fine_amount = $quota->deficit * $multiplier;
+            }
         }
     }
 
@@ -171,9 +217,10 @@ class AdminController extends Controller
             'bank_account_name' => 'required|string',
             'whatsapp_link' => 'required|url',
             'close_date' => 'required|date',
-            // Pickup date boleh kosong saat awal, tapi jika ada harus >= close_date
             'pickup_date' => 'nullable|date|after_or_equal:close_date',
-            'banner_image' => 'nullable|image|max:2048'
+            'banner_image' => 'nullable|image|max:2048',
+            'pickup_location' => 'required|string',
+            'starting_capital' => 'required|numeric|min:0',
         ]);
 
         // Upload Gambar Banner (Jika ada)
@@ -183,9 +230,7 @@ class AdminController extends Controller
             // Simpan di public/uploads/banners
             $request->banner_image->move(public_path('uploads/banners'), $imageName);
         }
-
-        $defaultTemplate = "Halo {nama_pemesan},\n\nTerima kasih sudah memesan di {nama_kegiatan}.\nBerikut adalah rincian pesanan Anda:\n\n{detail_pesanan}\n\nPO akan ditutup besok. Pastikan pembayaran sudah lunas.\n\nSalam,\nAdmin";
-
+        
         // Create Batch
         $batch = Batch::create([
             'name' => $request->name,
@@ -195,10 +240,11 @@ class AdminController extends Controller
             'whatsapp_link' => $request->whatsapp_link,
             'banner_image' => $imageName,
             'close_date' => $request->close_date,
-            'pickup_date' => $request->pickup_date, // <--- Simpan Tanggal Ambil
+            'pickup_date' => $request->pickup_date, 
             'is_active' => true,
-            'mail_message' => $defaultTemplate,
-            'is_reminder_sent' => false
+            'is_reminder_sent' => false,
+            'pickup_location' => $request->pickup_location,
+            'starting_capital' => $request->starting_capital,
         ]);
 
         // Generate Default Quota
@@ -214,7 +260,7 @@ class AdminController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.batch.menu', $batch->id)->with('success', 'Batch dibuat. Template email default telah dipasang.');
+        return redirect()->route('admin.batch.menu', $batch->id)->with('success', 'Batch dibuat.');
     }
 
     public function closeBatch($id)
@@ -222,23 +268,6 @@ class AdminController extends Controller
         $batch = Batch::findOrFail($id);
         $batch->update(['is_active' => false]);
         return redirect()->route('admin.analytics')->with('success', 'Batch PO Berhasil Ditutup.');
-    }
-
-    public function manageMail($id)
-    {
-        $batch = Batch::findOrFail($id);
-        return view('admin.manage_mail', compact('batch'));
-    }
-
-    public function updateMailTemplate(Request $request)
-    {
-        $request->validate([
-            'batch_id' => 'required',
-            'mail_message' => 'required|string',
-        ]);
-
-        Batch::where('id', $request->batch_id)->update(['mail_message' => $request->mail_message]);
-        return redirect()->back()->with('success', 'Template pesan email berhasil diperbarui.');
     }
 
     // =========================================================================
@@ -364,6 +393,7 @@ class AdminController extends Controller
     {
         $request->validate([
             'batch_id' => 'required|exists:batches,id',
+            'pickup_location' => 'required|string',
             'whatsapp_link' => 'required|url',
             'bank_name' => 'required|string',
             'bank_account_number' => 'required',
@@ -376,6 +406,7 @@ class AdminController extends Controller
         $oldLink = $batch->whatsapp_link;
 
         $dataToUpdate = [
+            'pickup_location' => $request->pickup_location,
             'whatsapp_link' => $request->whatsapp_link,
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
@@ -432,14 +463,21 @@ class AdminController extends Controller
 
     public function updateOrderStatus(Request $request, $id)
     {
-        $order = Order::with('orderItems')->findOrFail($id);
+        // Load order beserta item dan batch (penting untuk email)
+        $order = Order::with(['orderItems', 'batch'])->findOrFail($id);
         
-        // Kembalikan stok jika Ditolak
-        if ($request->status == 'Ditolak' && $order->status != 'Ditolak') {
-            $batch = Batch::findOrFail($order->batch_id);
+        $previousStatus = $order->status; 
+
+        // 1. Logika Pengembalian Stok (Jika status berubah jadi Ditolak)
+        if ($request->status == 'Ditolak' && $previousStatus != 'Ditolak') {
+            $batch = Batch::findOrFail($order->batch_id); // Ambil batch terkait
+            
             foreach ($order->orderItems as $item) {
+                // Cari data pivot di batch ini
                 $pivotRow = $batch->products()->where('product_id', $item->product_id)->first();
+                
                 if($pivotRow) {
+                    // Kembalikan stok (kurangi 'sold')
                     $batch->products()->updateExistingPivot($item->product_id, [
                         'sold' => max(0, $pivotRow->pivot->sold - $item->quantity) 
                     ]);
@@ -447,8 +485,22 @@ class AdminController extends Controller
             }
         }
 
+        // 2. Lakukan Update Status di Database
         $order->update(['status' => $request->status]);
-        return redirect()->back()->with('success', 'Status pesanan diperbarui.');
+
+        // Kita bandingkan status yang baru ($request->status) dengan yang lama ($previousStatus)
+        if ($request->status == 'Lunas' && $previousStatus != 'Lunas') {
+            
+            if ($order->customer_email) {
+                try {
+                    Mail::to($order->customer_email)->send(new OrderVerifiedMail($order));
+                } catch (\Exception $e) {
+                    Log::error("Gagal kirim email verifikasi ke {$order->customer_email}: " . $e->getMessage());
+                }
+            }
+        }
+
+        return redirect()->back()->with('success', 'Status pesanan diperbarui & notifikasi dikirim.');
     }
 
     public function toggleOrderReceived($id)
@@ -509,7 +561,7 @@ class AdminController extends Controller
         ]);
 
         // 4. Kembali dengan pesan sukses
-        return redirect()->back()->with('success', 'Data anggota berhasil diperbarui.');
+        return redirect()->back()->with('success', 'Data fungsio berhasil diperbarui.');
     }
 
     public function toggleFungsio($id)
@@ -524,9 +576,50 @@ class AdminController extends Controller
     public function toggleFinePaid($id)
     {
         $quota = BatchQuota::findOrFail($id);
-        $quota->update(['is_fine_paid' => !$quota->is_fine_paid]);
-        $status = $quota->is_fine_paid ? 'LUNAS' : 'BELUM BAYAR';
-        return redirect()->back()->with('success', "Status denda diperbarui: $status");
+        
+        if (!$quota->is_fine_paid) {
+            // PROSES BAYAR (Belum Lunas -> Lunas)
+            
+            // Kita harus hitung denda SAAT INI dulu
+            $batch = Batch::findOrFail($quota->batch_id);
+            
+            // Copy logika perhitungan multiplier singkat
+            $now = \Carbon\Carbon::now();
+            $closeDate = \Carbon\Carbon::parse($batch->close_date);
+            $weeksLate = $now->greaterThan($closeDate) ? $closeDate->diffInWeeks($now) : 0;
+            $multiplier = 10000 + ($weeksLate * 10000);
+            
+            // Hitung defisit real-time
+            $realisasi = Order::where('batch_id', $batch->id)
+                ->where('fungsio_id', $quota->fungsio_id)
+                ->where('status', '!=', 'Ditolak')
+                ->withSum('orderItems', 'quantity')
+                ->get()
+                ->sum('order_items_sum_quantity');
+                
+            $deficit = max(0, $quota->target_qty - $realisasi);
+            $currentFine = $deficit * $multiplier;
+
+            // Simpan status Lunas DAN Nominalnya
+            $quota->update([
+                'is_fine_paid' => true,
+                'paid_amount' => $currentFine
+            ]);
+            
+            $msg = 'Status denda: LUNAS (Rp ' . number_format($currentFine, 0, ',', '.') . ')';
+
+        } else {
+            // PROSES BATAL BAYAR (Lunas -> Belum Lunas)
+            // Reset paid_amount jadi 0
+            $quota->update([
+                'is_fine_paid' => false,
+                'paid_amount' => 0
+            ]);
+            
+            $msg = 'Status denda: BELUM BAYAR';
+        }
+
+        return redirect()->back()->with('success', $msg);
     }
 
     public function editBatchQuotas($id)
@@ -577,7 +670,7 @@ class AdminController extends Controller
                 );
             }
         }
-        return redirect()->back()->with('success', 'Nilai default divisi berhasil disimpan.');
+        return redirect()->back()->with('success', 'Nilai kuota divisi berhasil disimpan.');
     }
 
     // =========================================================================
@@ -586,10 +679,43 @@ class AdminController extends Controller
 
     public function analytics(Request $request)
     {
-        $batchesForChart = Batch::orderBy('created_at', 'asc')->get();
-        $chartLabels = $batchesForChart->pluck('name')->toArray();
-        $chartData = $batchesForChart->map(fn($batch) => $batch->orders()->where('status', 'Lunas')->count())->toArray();
+        // 1. PERSIAPAN DATA GRAFIK (PROFIT & TOTAL ITEM)
+        // Kita gunakan 'with' untuk eager loading agar loading tidak berat
+        $batchesForChart = Batch::with(['orders.orderItems', 'quotas'])
+                                ->orderBy('created_at', 'asc')
+                                ->get();
+        
+        $chartLabels = [];
+        $profitData  = []; // Data Garis (Keuntungan)
+        $soldData    = []; // Data Bar (Jumlah Produk Terjual)
 
+        foreach($batchesForChart as $batch) {
+            // A. Hitung Total Produk Terjual (Qty) - Hanya dari order Lunas
+            $totalQty = $batch->orders
+                ->where('status', 'Lunas')
+                ->sum(function($order) {
+                    return $order->orderItems->sum('quantity');
+                });
+
+            // B. Hitung Keuangan (Profit)
+            // 1. Pemasukan Penjualan
+            $salesIncome = $batch->orders->where('status', 'Lunas')->sum('total_amount');
+            
+            // 2. Pemasukan Denda (Hanya yang statusnya sudah dibayar/collected)
+            // Menggunakan kolom 'paid_amount' yang kita buat di migrasi sebelumnya
+            $fineIncome = $batch->quotas->where('is_fine_paid', true)->sum('paid_amount');
+            
+            // 3. Hitung Net Profit
+            $totalIncome = $salesIncome + $fineIncome;
+            $netProfit = $totalIncome - $batch->starting_capital;
+
+            // Masukkan ke Array
+            $chartLabels[] = $batch->name;
+            $soldData[]    = $totalQty;
+            $profitData[]  = $netProfit;
+        }
+
+        // 2. DATA TABEL (SEARCH & PAGINATION) - TETAP SAMA
         $query = Batch::with('products')->orderBy('created_at', 'desc');
 
         if ($request->has('q') && !empty($request->q)) {
@@ -606,7 +732,8 @@ class AdminController extends Controller
             return view('admin.partials.batch_table', compact('batches'))->render();
         }
 
-        return view('admin.dashboard_analytics', compact('batches', 'chartLabels', 'chartData'));
+        // Kirim 3 variabel array ke view (Labels, Profit, Sold)
+        return view('admin.dashboard_analytics', compact('batches', 'chartLabels', 'profitData', 'soldData'));
     }
     // =========================================================================
     // 8. SECURE FILE VIEWER (BUKTI TRANSFER)
@@ -614,12 +741,12 @@ class AdminController extends Controller
 
     public function showProof($filename)
     {
-        // 1. Cek apakah file ada di folder privat 'transfers'
+        // 1. Cek apakah file ada di folder 'transfers'
         if (!Storage::exists('transfers/' . $filename)) {
             abort(404); // File tidak ditemukan
         }
 
-        // 2. Return file secara aman (Laravel otomatis mengatur Headers & Mime Type)
+        // 2. Return file secara aman
         return Storage::response('transfers/' . $filename);
     }
 }

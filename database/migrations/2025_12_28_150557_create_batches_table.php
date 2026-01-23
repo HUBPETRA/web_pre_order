@@ -19,15 +19,20 @@ return new class extends Migration
             // Banner
             $table->string('banner_image')->nullable();
             
-            // Kolom Template Email & Tanggal
+            // Kolom Tanggal
             $table->text('mail_message')->nullable();
             $table->date('close_date')->nullable();
             $table->date('pickup_date')->nullable(); // Nullable saat pembuatan awal
             
             // Denda & Status
-            $table->integer('fine_per_unit')->default(5000); 
+            $table->integer('fine_per_unit')->default(10000); 
             $table->boolean('is_active')->default(false);
             $table->boolean('is_reminder_sent')->default(false);
+
+            //Info Finansial & Lokasi
+            $table->string('pickup_location')->nullable(); 
+            $table->decimal('starting_capital', 15, 2)->default(0); 
+            $table->decimal('income', 15, 2)->default(0);
             
             $table->timestamps();
         });

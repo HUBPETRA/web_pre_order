@@ -20,10 +20,6 @@
                 <i class="fas fa-chart-pie"></i> <span class="hidden sm:inline">Target Kuota</span><span class="sm:hidden">Target</span>
             </a>
 
-            <a href="{{ route('admin.batch.mail', $activeBatch->id) }}" class="flex-1 md:flex-none justify-center bg-orange-500 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-orange-600 transition shadow flex items-center gap-2">
-                <i class="fas fa-envelope"></i> <span>Email</span>
-            </a>
-
             <form action="{{ route('admin.batch.close', $activeBatch->id) }}" method="POST" onsubmit="return confirm('Yakin ingin menutup PO ini? User tidak akan bisa pesan lagi.')" class="flex-1 md:flex-none">
                 @csrf
                 <button class="w-full justify-center bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-700 transition shadow flex items-center gap-2">
@@ -76,13 +72,16 @@
              <button onclick="openEditBatchModal()" class="absolute top-3 right-3 text-gray-300 hover:text-yellow-600 transition p-1">
                 <i class="fas fa-pen text-xs"></i>
             </button>
-            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Jadwal Pengambilan</p>
+            <p class="text-xs text-gray-500 font-bold uppercase mb-1">Jadwal & Lokasi</p>
             @if($activeBatch->pickup_date)
                 <p class="font-bold text-lg text-slate-800">{{ $activeBatch->pickup_date->translatedFormat('d M Y') }}</p>
-                <p class="text-xs text-gray-400">Pastikan stok siap.</p>
+                <div class="flex items-start gap-1 mt-1 text-gray-600">
+                    <i class="fas fa-map-marker-alt text-xs mt-1 text-red-400"></i>
+                    <p class="text-xs font-medium leading-tight">{{ $activeBatch->pickup_location ?? 'Lokasi belum diatur' }}</p>
+                </div>
             @else
                 <p class="text-sm text-red-500 font-bold italic">Belum ditentukan</p>
-                <p class="text-xs text-gray-400">Segera atur.</p>
+                <p class="text-xs text-gray-400">Segera atur jadwal & lokasi.</p>
             @endif
         </div>
 
@@ -289,6 +288,24 @@
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tanggal Pengambilan</label>
                         <input type="date" name="pickup_date" value="{{ $activeBatch->pickup_date ? $activeBatch->pickup_date->format('Y-m-d') : '' }}" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
                         @error('pickup_date')
+                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lokasi Pengambilan</label>
+                        <div class="relative">
+                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-map-marker-alt text-gray-400"></i>
+                            </div>
+                            <input type="text" 
+                                   name="pickup_location" 
+                                   value="{{ $activeBatch->pickup_location }}" 
+                                   class="pl-10 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                                   required 
+                                   placeholder="Contoh: Lobi Gedung A">
+                        </div>
+                        @error('pickup_location')
                             <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                         @enderror
                     </div>
