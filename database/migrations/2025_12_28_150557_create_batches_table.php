@@ -20,7 +20,6 @@ return new class extends Migration
             $table->string('banner_image')->nullable();
             
             // Kolom Tanggal
-            $table->text('mail_message')->nullable();
             $table->date('close_date')->nullable();
             $table->date('pickup_date')->nullable(); // Nullable saat pembuatan awal
             
