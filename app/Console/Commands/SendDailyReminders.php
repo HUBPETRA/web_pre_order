@@ -8,13 +8,13 @@ use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache; // [PENTING] Untuk Anti-Spam
+use Illuminate\Support\Facades\Cache;
 
 // Import Semua Mailables
 use App\Mail\POReminderMail;
 use App\Mail\QuotaReminderMail;
 use App\Mail\AdminAlertMail;
-use App\Mail\FineNotificationMail; // [FIX] Ditambahkan karena sebelumnya kurang
+use App\Mail\FineNotificationMail;
 
 class SendDailyReminders extends Command
 {
@@ -31,15 +31,33 @@ class SendDailyReminders extends Command
         $tomorrow = Carbon::tomorrow();
         $todayStr = $today->format('Y-m-d'); // Key untuk Cache
 
-        // 1. Ambil Batch yang SEDANG AKTIF (Beserta Relasi untuk Optimasi)
-        $activeBatches = Batch::where('is_active', true)->with('quotas.fungsio')->get();
+        // =========================================================================
+        // [PERUBAHAN LOGIKA QUERY]
+        // Kita tidak hanya mengambil yang 'is_active', tapi juga batch yang sudah tutup
+        // namun masih butuh reminder Pickup atau Denda.
+        // =========================================================================
+        $batches = Batch::query()
+            ->where('is_active', true) // 1. Ambil Batch Aktif (Normal)
+            ->orWhere(function($q) use ($tomorrow) {
+                // 2. Ambil Batch Non-Aktif tapi BESOK ada pengambilan (Penting untuk Reminder Pickup)
+                $q->whereDate('pickup_date', $tomorrow)
+                  ->where('is_reminder_sent', false);
+            })
+            ->orWhere(function($q) use ($today) {
+                // 3. Ambil Batch Non-Aktif tapi masih dalam masa Denda (H+1 s/d 3 Bulan ke belakang)
+                // Kita batasi 3 bulan agar tidak menarik data PO yang sudah terlalu lama
+                $q->whereDate('close_date', '<', $today)
+                  ->whereDate('close_date', '>=', $today->copy()->subMonths(3));
+            })
+            ->with('quotas.fungsio')
+            ->get();
 
-        if ($activeBatches->isEmpty()) {
-            $this->info("-> Tidak ada Batch Aktif saat ini. Selesai.");
+        if ($batches->isEmpty()) {
+            $this->info("-> Tidak ada Batch yang perlu diproses saat ini. Selesai.");
             return;
         }
 
-        foreach ($activeBatches as $batch) {
+        foreach ($batches as $batch) {
             $this->info("\n[PROSES BATCH] : {$batch->name}");
             
             // ==========================================
@@ -123,29 +141,30 @@ class SendDailyReminders extends Command
             // ==========================================
             // FITUR C: ADMIN ALERT (HARIAN)
             // ==========================================
-            $pendingCount = $batch->orders()->where('status', 'Menunggu Verifikasi')->count();
-            if ($pendingCount > 0) {
-                // Cek Cache Admin agar tidak spam juga
-                $adminCacheKey = "admin_alert:{$batch->id}:{$todayStr}";
-                
-                if (!Cache::has($adminCacheKey)) {
-                    $adminEmail = 'admin@pogenta.com'; // Ganti email admin asli
-                    try {
-                        Mail::to($adminEmail)->send(new AdminAlertMail($pendingCount, $batch->name));
-                        $this->info("   [FITUR C] Admin Alert dikirim ({$pendingCount} pending).");
-                        Cache::put($adminCacheKey, true, now()->endOfDay());
-                    } catch (\Exception $e) {
-                        Log::error("Gagal kirim Admin Alert");
+            // Hanya jalankan alert admin jika batch masih aktif atau belum lewat jauh
+            if ($batch->is_active || $todayStart->diffInDays($closeDate) < 7) {
+                $pendingCount = $batch->orders()->where('status', 'Menunggu Verifikasi')->count();
+                if ($pendingCount > 0) {
+                    $adminCacheKey = "admin_alert:{$batch->id}:{$todayStr}";
+                    
+                    if (!Cache::has($adminCacheKey)) {
+                        $adminEmail = 'admin@pogenta.com'; // Ganti email admin asli
+                        try {
+                            Mail::to($adminEmail)->send(new AdminAlertMail($pendingCount, $batch->name));
+                            $this->info("   [FITUR C] Admin Alert dikirim ({$pendingCount} pending).");
+                            Cache::put($adminCacheKey, true, now()->endOfDay());
+                        } catch (\Exception $e) {
+                            Log::error("Gagal kirim Admin Alert");
+                        }
+                    } else {
+                        $this->info("   [FITUR C] Skip Admin Alert (Sudah dikirim hari ini).");
                     }
-                } else {
-                    $this->info("   [FITUR C] Skip Admin Alert (Sudah dikirim hari ini).");
                 }
             }
 
             // ==========================================
             // FITUR D: TAGIHAN DENDA (H+1 DST)
             // ==========================================
-            // [FIX] Kode ini sekarang ada DI DALAM loop foreach, jadi aman.
             
             $closeDate = Carbon::parse($batch->close_date)->startOfDay();
             $todayStart = $today->copy()->startOfDay();
