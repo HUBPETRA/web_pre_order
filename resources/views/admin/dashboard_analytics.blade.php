@@ -24,7 +24,8 @@
     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
         <h3 class="font-bold text-lg mb-4 text-slate-700">Grafik Keuntungan & Pesanan</h3>
         <div class="relative h-64 w-full">
-            <canvas id="salesChart"></canvas>
+            {{-- PERBAIKAN 1: ID Canvas disamakan dengan Javascript --}}
+            <canvas id="analyticsChart"></canvas>
         </div>
     </div>
 
@@ -52,90 +53,103 @@
 @endsection
 
 @push('scripts')
+{{-- PERBAIKAN 2: Pastikan Library Chart.js dimuat --}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
 <script>
-    // 1. Script Grafik
-    const ctx = document.getElementById('analyticsChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar', // Tipe dasar Bar
-        data: {
-            labels: {!! json_encode($chartLabels) !!},
-            datasets: [
-                {
-                    // DATASET 1: KEUNTUNGAN (Garis)
-                    label: 'Keuntungan Bersih (Rp)',
-                    data: {!! json_encode($profitData) !!},
-                    type: 'line', // Override jadi Line
-                    borderColor: 'rgb(34, 197, 94)', // Hijau
-                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                    borderWidth: 3,
-                    yAxisID: 'y1', // Sumbu Y Kanan (Uang)
-                    tension: 0.4,
-                    fill: true
+    // Gunakan Event Listener agar script jalan setelah HTML siap
+    document.addEventListener("DOMContentLoaded", function() {
+        
+        // --- 1. SCRIPT GRAFIK ---
+        const chartCanvas = document.getElementById('analyticsChart'); // ID ini sekarang cocok dengan HTML
+
+        if (chartCanvas) {
+            const ctx = chartCanvas.getContext('2d');
+            
+            // Gunakan operator '?? []' agar tidak error jika data dari controller null
+            const labels = {!! json_encode($chartLabels ?? []) !!};
+            const profitData = {!! json_encode($profitData ?? []) !!};
+            const soldData = {!! json_encode($soldData ?? []) !!};
+
+            new Chart(ctx, {
+                type: 'bar', 
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Keuntungan Bersih (Rp)',
+                            data: profitData,
+                            type: 'line', 
+                            borderColor: 'rgb(34, 197, 94)', 
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            borderWidth: 3,
+                            yAxisID: 'y1', 
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Total Produk Terjual (Pcs)',
+                            data: soldData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)', 
+                            borderColor: 'rgb(59, 130, 246)',
+                            borderWidth: 1,
+                            yAxisID: 'y', 
+                            barPercentage: 0.5
+                        }
+                    ]
                 },
-                {
-                    // DATASET 2: PRODUK TERJUAL (Bar)
-                    label: 'Total Produk Terjual (Pcs)',
-                    data: {!! json_encode($soldData) !!},
-                    backgroundColor: 'rgba(59, 130, 246, 0.7)', // Biru
-                    borderColor: 'rgb(59, 130, 246)',
-                    borderWidth: 1,
-                    yAxisID: 'y', // Sumbu Y Kiri (Jumlah)
-                    barPercentage: 0.5
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            scales: {
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: true, text: 'Jumlah Produk (Pcs)' },
-                    grid: { display: false } // Hilangkan grid kiri biar bersih
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: { display: true, text: 'Keuntungan (Rp)' },
-                    grid: { drawOnChartArea: true } // Grid ikut yang kanan
-                }
-            },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed.y !== null) {
-                                // Format Rupiah untuk dataset Keuntungan
-                                if (context.datasetIndex === 0) { 
-                                    label += new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(context.parsed.y);
-                                } else {
-                                    label += context.parsed.y;
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Agar grafik pas di container
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Jumlah (Pcs)' },
+                            grid: { display: false } 
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Keuntungan (Rp)' },
+                            grid: { drawOnChartArea: true } 
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        if (context.datasetIndex === 0) { 
+                                            label += new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(context.parsed.y);
+                                        } else {
+                                            label += context.parsed.y;
+                                        }
+                                    }
+                                    return label;
                                 }
                             }
-                            return label;
                         }
                     }
                 }
-            }
+            });
         }
     });
 
-    // 2. SCRIPT LIVE SEARCH & PAGINATION (AJAX)
+    // --- 2. SCRIPT LIVE SEARCH & PAGINATION ---
     $(document).ready(function() {
         
-        // Fungsi inti untuk mengambil data via AJAX
-        // Url bisa berupa route search biasa, atau route pagination (page=2)
         function fetch_data(url) {
             let loading = $('#search-loading');
             loading.removeClass('hidden');
@@ -154,13 +168,10 @@
             });
         }
 
-        // A. Event saat Mengetik (Search)
         let timeout = null;
         $('#live-search').on('keyup', function() {
             clearTimeout(timeout);
             let query = $(this).val();
-            
-            // Kita kirim query ke URL dasar (otomatis reset ke page 1)
             let base_url = "{{ route('admin.analytics') }}" + "?q=" + query;
 
             timeout = setTimeout(function() {
@@ -168,13 +179,9 @@
             }, 500);
         });
 
-        // B. Event saat Klik Pagination (Supaya tidak reload halaman)
         $(document).on('click', '.pagination a', function(event) {
-            event.preventDefault(); // Stop browser reload
-            
-            // Ambil URL lengkap dari link pagination (sudah mengandung ?page=X & q=...)
+            event.preventDefault(); 
             let url = $(this).attr('href'); 
-            
             if(url) {
                 fetch_data(url);
             }
